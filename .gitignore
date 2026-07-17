@@ -1,0 +1,13 @@
+node_modules/
+out/
+dist/
+release/
+
+# Secrets — the Team Hub API key lives in .env and must never be committed.
+.env
+.env.local
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.log
