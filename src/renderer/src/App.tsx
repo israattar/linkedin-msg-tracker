@@ -65,10 +65,14 @@ export default function App() {
           <TabButton id="all" label="All" page={page} onSelect={setPage} />
           <TabButton id="analytics" label="Analytics" page={page} onSelect={setPage} />
         </nav>
-        <div className={`sync-pill ${pill.tone}`} title={syncStatus?.message ?? ''}>
-          <span className="led" />
-          {pill.text}
-        </div>
+        {/* With sync off the pill has nothing to report, and a permanent
+            "off" badge is just clutter in a local-only app. */}
+        {syncStatus?.configured !== false && (
+          <div className={`sync-pill ${pill.tone}`} title={syncStatus?.message ?? ''}>
+            <span className="led" />
+            {pill.text}
+          </div>
+        )}
       </header>
 
       <main className="page">

@@ -26,6 +26,9 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
   const [notice, setNotice] = useState('');
 
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
+  // False while Team Hub sync is switched off, which hides every part of the
+  // UI that only makes sense when a board is attached.
+  const syncing = syncStatus?.configured === true;
 
   const countByStage = useMemo(() => {
     const counts = new Map<Stage, number>();
@@ -112,7 +115,10 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
           );
         })}
         <span className="spacer" />
-        {isDesktop && (
+        {/* Import and retry only mean something when there is a board to talk
+            to. With sync off they are hidden rather than disabled: there is
+            nothing the user could do to make them work from here. */}
+        {isDesktop && syncing && (
           <>
             {errorCount > 0 && (
               <button className="btn small" disabled={busy !== null} onClick={() => void runRetry()}>
@@ -159,7 +165,7 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
             {contact.meetingHeldDate && <span className="chip">Met</span>}
             {contact.proposalSentDate && <span className="chip win">Proposal</span>}
             <StageBadge stage={contact.stage} />
-            <span className={`sync-dot ${contact.sync.state}`} title={syncTitle(contact)} />
+            {syncing && <span className={`sync-dot ${contact.sync.state}`} title={syncTitle(contact)} />}
             <span className="when">{formatShort(contact.updatedAt.slice(0, 10))}</span>
           </div>
         ))
@@ -168,6 +174,7 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
       {selected && (
         <ContactModal
           contact={selected}
+          syncing={syncing}
           onClose={() => setSelectedId(null)}
           onAct={(id, followUpDate) => void act(selected.id, id, followUpDate)}
           onToggleFlag={() => void toggleFlag(selected.id, !selected.needsReply)}
@@ -181,6 +188,7 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
 
 interface ModalProps {
   contact: Contact;
+  syncing: boolean;
   onClose: () => void;
   onAct: (actionId: string, followUpDate?: string) => void;
   onToggleFlag: () => void;
@@ -191,7 +199,7 @@ interface ModalProps {
 // The full detail view for one contact, opened by clicking its row - a clear
 // "you are now looking at this one specific contact" state, with the delete
 // action tucked behind a confirm step since it cannot be undone.
-function ContactModal({ contact, onClose, onAct, onToggleFlag, onDeleteDraft, onDeleteContact }: ModalProps) {
+function ContactModal({ contact, syncing, onClose, onAct, onToggleFlag, onDeleteDraft, onDeleteContact }: ModalProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
@@ -276,7 +284,7 @@ function ContactModal({ contact, onClose, onAct, onToggleFlag, onDeleteDraft, on
             )}
           </div>
 
-          {contact.sync.state === 'error' && (
+          {syncing && contact.sync.state === 'error' && (
             <div className="sync-error">Sync failed: {contact.sync.message}</div>
           )}
 

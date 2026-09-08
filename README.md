@@ -1,9 +1,16 @@
 # LinkedIn outreach tracker
 
 A personal desktop app for tracking LinkedIn outreach through a sales
-pipeline, with two-way sync to a Team Hub board. You read the LinkedIn
-conversation and judge the outcome; the app handles everything downstream:
-stage moves, date stamping, the Team Hub card, and follow-up reminders.
+pipeline. You read the LinkedIn conversation and judge the outcome; the app
+handles everything downstream: stage moves, date stamping, and follow-up
+reminders.
+
+> **Team Hub sync is currently switched off.** The app runs entirely on this
+> machine and every contact is entered by hand. The Team Hub client, the sync
+> service and the import path are all still in the codebase and still
+> compiled; `SYNC_ENABLED` in `src/main/config.ts` is the single switch. Set
+> it back to `true`, put `TEAMHUB_API_KEY` and `TEAMHUB_PROJECT_ID` in `.env`,
+> and everything below about syncing applies again.
 
 Reading or sending LinkedIn messages is deliberately out of scope: LinkedIn
 has no API for personal inboxes and automating them breaks their terms of

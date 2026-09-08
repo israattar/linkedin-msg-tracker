@@ -24,6 +24,16 @@ function resolveEnvPath(): string {
 
 dotenv.config({ path: resolveEnvPath() });
 
+// Team Hub sync is switched off deliberately: the tracker runs as a purely
+// local app and every contact is entered by hand. The client, the sync
+// service and the import path are all still here and still compiled; this
+// flag is the only thing standing between them and the network.
+//
+// To reconnect: set this to false and make sure TEAMHUB_API_KEY and
+// TEAMHUB_PROJECT_ID are in the .env described above. Nothing else changed,
+// so cards created before the disconnect are still matched by task id.
+const SYNC_ENABLED = false;
+
 export interface AppConfig {
   apiKey: string;
   projectId: string;
@@ -37,7 +47,9 @@ export function loadConfig(): AppConfig {
   return {
     apiKey,
     projectId,
-    configured: apiKey.length > 0 && projectId.length > 0,
+    // Credentials sitting in .env are ignored while sync is off, so leaving
+    // the key in place does not quietly reconnect the app.
+    configured: SYNC_ENABLED && apiKey.length > 0 && projectId.length > 0,
     envPath: resolveEnvPath(),
   };
 }

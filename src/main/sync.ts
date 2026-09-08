@@ -45,7 +45,10 @@ export class SyncService {
         configured: false,
         slotsMapped: false,
         unmappedStages: [],
-        message: `Team Hub not configured. Add TEAMHUB_API_KEY and TEAMHUB_PROJECT_ID to ${this.envPath}.`,
+        // Sync is off by design (see SYNC_ENABLED in config.ts), so this is a
+        // statement of fact rather than something to fix. The env path is
+        // named for whoever does want to turn it back on.
+        message: `Team Hub sync is off. Everything is stored locally on this machine. To reconnect, set SYNC_ENABLED in config.ts and add your credentials to ${this.envPath}.`,
         errorCount,
       };
     }
