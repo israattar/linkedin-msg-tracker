@@ -3,8 +3,8 @@
 //
 // In dev, .env lives in the project root (the usual convention). In an
 // installed build there is no project folder to read from, so credentials
-// instead live in the app's per-user data folder — the same place contacts
-// are stored — seeded on first run from the .env.example bundled with the
+// instead live in the app's per-user data folder (the same place contacts
+// are stored), seeded on first run from the .env.example bundled with the
 // installer, ready for the user to fill in.
 import { app } from 'electron';
 import { existsSync, copyFileSync } from 'node:fs';

@@ -57,7 +57,8 @@ export default function App() {
         </div>
         <nav className="tabs">
           <TabButton id="focus" label="Focus" page={page} onSelect={setPage} count={queue.length} />
-          <TabButton id="reply" label="Reply" page={page} onSelect={setPage} count={replyCount} />
+          {/* The only count that means a person is waiting, so the only one in pink. */}
+          <TabButton id="reply" label="Reply" page={page} onSelect={setPage} count={replyCount} alert />
           <TabButton id="talking" label="In conversation" page={page} onSelect={setPage} count={talkingCount} />
           <TabButton id="connected" label="Connected" page={page} onSelect={setPage} count={connectedToday} />
           <TabButton id="add" label="Add" page={page} onSelect={setPage} />
@@ -89,13 +90,17 @@ interface TabProps {
   page: Page;
   onSelect: (page: Page) => void;
   count?: number;
+  // Colours the count as heat rather than progress.
+  alert?: boolean;
 }
 
-function TabButton({ id, label, page, onSelect, count }: TabProps) {
+function TabButton({ id, label, page, onSelect, count, alert = false }: TabProps) {
   return (
     <button className={`tab ${page === id ? 'active' : ''}`} onClick={() => onSelect(id)}>
       {label}
-      {count !== undefined && count > 0 && <span className="count">{count}</span>}
+      {count !== undefined && count > 0 && (
+        <span className={`count ${alert ? 'alert' : ''}`}>{count}</span>
+      )}
     </button>
   );
 }

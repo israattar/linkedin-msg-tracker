@@ -119,7 +119,7 @@ function ConversationRow({
   const quiet = daysSilent(contact);
 
   return (
-    <div className="convo-row">
+    <div className={`convo-row ${contact.needsReply ? 'needs-reply' : ''}`}>
       <div className="convo-main">
         <Avatar name={contact.name} size={36} />
         <div className="grow">

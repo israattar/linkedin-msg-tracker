@@ -111,13 +111,13 @@ npm run dev
 
 ## Installing it as a real app
 
-`npm run dist` builds `release/Outreach Tracker Setup <version>.exe` — a
+`npm run dist` builds `release/Outreach Tracker Setup <version>.exe`, a
 normal Windows installer with a Start Menu entry and a desktop shortcut, so
 day-to-day use never needs a terminal.
 
 Credentials work differently once installed: there is no project folder to
 read `.env` from, so the app reads it from its own per-user data folder
-(`%APPDATA%\linkedin-msg-tracker\.env`) instead — the same folder
+(`%APPDATA%\linkedin-msg-tracker\.env`) instead, the same folder
 `contacts.json` already lives in. On first launch this file is seeded
 (empty) from the bundled `.env.example`; fill it in there, or copy an
 existing `.env` into that folder, then restart the app.
@@ -162,6 +162,12 @@ Key decisions:
 - **One set of cadence rules.** `src/shared/cadence.ts` decides who is due
   what; Focus, Reply and the browser preview all read it, so they cannot
   drift apart.
+- **Two colours, one meaning each.** Lime (`#B9D432`) is progress: actions,
+  good numbers, the suggested move, the daily tally. Pink (`#EC1B7C`) is
+  heat: someone waiting on a reply, and moves that cannot be taken back.
+  Everything else is charcoal (`#333333`) and grey (`#848484`). A colour that
+  means two things means nothing, so new colours need a new job first. Tokens
+  live at the top of `src/renderer/src/theme.css`.
 
 ## Data
 

@@ -1,37 +1,60 @@
 /* ==========================================================================
-   Outreach tracker design system
-   Dark base, lime green primary, hot pink kept as a small secondary accent.
+   Outreach tracker design system: "Charcoal"
+   Charcoal ground, lime green carrying every action and every good number,
+   hot pink kept for heat: someone waiting, a timer run out, a move that
+   cannot be taken back. Two colours, one meaning each.
    ========================================================================== */
 
 :root {
-  --bg: #10130d;
-  --bg-raise: #171b10;
-  --surface: #1e2314;
-  --surface-2: #2a3119;
-  --border: rgba(216, 245, 158, 0.09);
-  --border-strong: rgba(216, 245, 158, 0.18);
+  /* Charcoal. #333333 from the brand palette is the card surface; the page
+     sits a shade under it so cards lift, and raised chrome a shade between. */
+  --bg: #232320;
+  --bg-raise: #2b2b28;
+  --surface: #333333;
+  --surface-2: #3e3e3b;
+  --border: rgba(250, 250, 250, 0.09);
+  --border-strong: rgba(250, 250, 250, 0.19);
 
-  --ink: #f2f6e9;
-  --muted: #a8b590;
-  --faint: #71805e;
+  --ink: #fafafa;
+  --muted: #b3b6ad;
+  --faint: #848484;
 
-  --lime: #c9f24e;
-  --lime-strong: #d7f96d;
-  --lime-deep: #a5cf2f;
-  --lime-dim: rgba(201, 242, 78, 0.14);
-  --lime-ink: #1d2605;
+  /* Lime: progress, action, anything going right. */
+  --lime: #b9d432;
+  --lime-strong: #c9e44a;
+  --lime-deep: #a3bb2b;
+  --lime-dim: rgba(185, 212, 50, 0.15);
+  --lime-tint: rgba(185, 212, 50, 0.09);
+  --lime-ink: #1f2604;
 
-  --pink: #ff3d9a;
-  --pink-strong: #ff5fad;
-  --pink-deep: #d42a80;
-  --pink-dim: rgba(255, 61, 154, 0.13);
+  /* Pink: heat. Full strength for fills, the lighter mix for small text,
+     which needs the extra contrast against charcoal. */
+  --pink: #ec1b7c;
+  --pink-strong: #ff4d9d;
+  --pink-deep: #c4145f;
+  --pink-dim: rgba(236, 27, 124, 0.16);
+  --pink-tint: rgba(236, 27, 124, 0.09);
 
-  --danger: #ff5c7a;
-  --danger-dim: rgba(255, 92, 122, 0.12);
+  /* Destructive borrows the pink rather than introducing a third alarm. */
+  --danger: #ff4d9d;
+  --danger-dim: rgba(236, 27, 124, 0.14);
 
   --radius: 10px;
   --radius-lg: 16px;
   --font-mono: 'Cascadia Code', Consolas, monospace;
+}
+
+/* Announced to screen readers, absent from the screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 * {
@@ -285,7 +308,7 @@ button {
   color: var(--lime-ink);
 }
 .btn.lime:hover {
-  background: #d7f96d;
+  background: var(--lime-strong);
 }
 
 .btn.quiet {
@@ -392,13 +415,16 @@ kbd {
   background: var(--surface-2);
   color: var(--muted);
 }
+/* The lime deepens as a contact moves down the pipeline, so the colour itself
+   says how far along they are. Everything past the pipeline drops out of the
+   ramp into neutral: those states are over, not in progress. */
 .badge.stage-awaiting-reply {
-  background: rgba(201, 242, 78, 0.1);
-  color: #bfd689;
+  background: var(--lime-tint);
+  color: #a9bd63;
 }
 .badge.stage-in-conversation {
-  background: rgba(201, 242, 78, 0.22);
-  color: #dcef9a;
+  background: rgba(185, 212, 50, 0.24);
+  color: #cfe46b;
 }
 .badge.stage-active-client {
   background: var(--lime);
@@ -407,17 +433,17 @@ kbd {
 .badge.stage-no-response {
   background: var(--bg-raise);
   border: 1px solid var(--border);
-  color: #8f9a83;
+  color: var(--faint);
 }
 .badge.stage-went-cold {
   background: var(--bg-raise);
   border: 1px solid var(--border-strong);
-  color: #9db3c9;
+  color: var(--faint);
 }
 .badge.stage-maybe-later {
   background: var(--surface-2);
-  color: #cbaec0;
-  border: 1px dashed var(--border-strong);
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
 }
 .badge.stage-not-interested {
   background: none;
@@ -426,7 +452,7 @@ kbd {
 }
 .badge.stage-draft {
   background: var(--bg-raise);
-  border: 1px dashed var(--border-strong);
+  border: 1px solid var(--border-strong);
   color: var(--faint);
 }
 
@@ -448,12 +474,13 @@ kbd {
   border: 1.5px solid var(--faint);
 }
 
+/* Colour and ink come from the component, which picks a pair from the brand
+   palette by name so one contact always looks the same. */
 .avatar {
   display: grid;
   place-items: center;
   border-radius: 50%;
   font-weight: 700;
-  color: #fff;
   flex-shrink: 0;
   user-select: none;
 }
@@ -652,7 +679,7 @@ kbd {
   color: var(--faint);
 }
 .action-row.advance {
-  border-color: rgba(201, 242, 78, 0.4);
+  border-color: rgba(185, 212, 50, 0.42);
 }
 .action-row.advance:hover {
   background: var(--lime-dim);
@@ -846,7 +873,7 @@ kbd {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(8, 10, 6, 0.6);
+  background: rgba(14, 14, 13, 0.66);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1146,11 +1173,20 @@ kbd {
   margin-top: 3px;
 }
 .mini-stat.accent {
-  border-color: rgba(201, 242, 78, 0.4);
+  border-color: rgba(185, 212, 50, 0.42);
   background: var(--lime-dim);
 }
 .mini-stat.accent .value {
   color: var(--lime);
+}
+/* People the pipeline lost. Pink because these are the numbers worth
+   flinching at, not another shade of "fine". */
+.mini-stat.loss {
+  border-color: rgba(236, 27, 124, 0.32);
+  background: var(--pink-tint);
+}
+.mini-stat.loss .value {
+  color: var(--pink-strong);
 }
 
 .card-title {
@@ -1330,9 +1366,23 @@ kbd {
 
 /* The move a timer is proposing, marked rather than reordered so the number
    keys stay where they were. */
+/* The move a timer is proposing is filled solid rather than outlined: at a
+   glance there is one lit row and everything else is a border. */
 .action-row.suggested {
   border-color: var(--lime);
-  background: var(--lime-dim);
+  background: var(--lime);
+  color: var(--lime-ink);
+}
+.action-row.suggested:hover {
+  background: var(--lime-strong);
+}
+.action-row.suggested kbd {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(31, 38, 4, 0.3);
+  color: var(--lime-ink);
+}
+.action-row.suggested .to {
+  color: rgba(31, 38, 4, 0.72);
 }
 .action-row .tag {
   padding: 1px 7px;
@@ -1346,8 +1396,11 @@ kbd {
 }
 .btn.small.suggested {
   border-color: var(--lime);
-  background: var(--lime-dim);
-  color: var(--lime);
+  background: var(--lime);
+  color: var(--lime-ink);
+}
+.btn.small.suggested:hover {
+  background: var(--lime-strong);
 }
 
 /* --------------------------------------------------------------------------
@@ -1391,7 +1444,7 @@ kbd {
 }
 .convo-empty {
   padding: 12px 14px;
-  border: 1px dashed var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   font-size: 12.5px;
   color: var(--faint);
@@ -1561,7 +1614,7 @@ kbd {
   left: 0;
   right: 0;
   bottom: var(--goal-pct, 50%);
-  border-top: 1px dashed var(--border-strong);
+  border-top: 1px solid var(--border-strong);
 }
 .day-chart .goal-line span {
   position: absolute;
@@ -1609,7 +1662,7 @@ kbd {
   transition: background 0.12s ease;
 }
 .dc-col:hover .dc-bar {
-  background: rgba(201, 242, 78, 0.3);
+  background: rgba(185, 212, 50, 0.32);
 }
 .dc-col.met .dc-bar {
   background: var(--lime);
@@ -1648,4 +1701,57 @@ kbd {
   margin-top: 2px;
   font-size: 11px;
   color: var(--faint);
+}
+
+/* --------------------------------------------------------------------------
+   "Someone is waiting on you"
+   The one thing pink is for on a list. A rail down the left edge rather than
+   a badge: it scans in one pass down a column of rows, and it costs no space.
+   -------------------------------------------------------------------------- */
+
+.contact-row.needs-reply,
+.convo-row.needs-reply,
+.reply-row.respond {
+  box-shadow: inset 3px 0 0 var(--pink);
+}
+.contact-row.needs-reply .meta,
+.convo-row.needs-reply .meta,
+.reply-row.respond .meta {
+  color: var(--pink-strong);
+}
+
+/* The Reply tab's count is the same signal in the top bar. */
+.tab .count.alert {
+  background: var(--pink);
+  color: #fff;
+}
+
+/* --------------------------------------------------------------------------
+   The fifty
+   One square per connection, so the daily goal is a shape you fill rather
+   than a number you read. Squares light left to right, ten to a row.
+   -------------------------------------------------------------------------- */
+
+.fifty {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  margin-top: 14px;
+  max-width: 300px;
+}
+.fifty i {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--surface-2);
+  transition: background 0.12s ease;
+}
+.fifty i.on {
+  background: var(--lime);
+}
+/* Past fifty the grid is full, so the overflow gets its own line. */
+.fifty-over {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--lime);
 }

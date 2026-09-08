@@ -177,7 +177,7 @@ export default function FocusPage({ contacts, queue, refresh }: Props) {
             const contact = contactById.get(item.contactId);
             return (
               <div key={item.contactId} className="peek">
-                Next: {contact?.name ?? 'Unknown'} — {item.reason}
+                Next: {contact?.name ?? 'Unknown'} - {item.reason}
               </div>
             );
           })}

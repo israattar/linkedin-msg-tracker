@@ -136,7 +136,11 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
         </div>
       ) : (
         shown.map((contact) => (
-          <div key={contact.id} className="contact-row" onClick={() => setSelectedId(contact.id)}>
+          <div
+            key={contact.id}
+            className={`contact-row ${contact.needsReply ? 'needs-reply' : ''}`}
+            onClick={() => setSelectedId(contact.id)}
+          >
             <Avatar name={contact.name} size={36} />
             <div className="grow">
               <div className="name">{contact.name}</div>

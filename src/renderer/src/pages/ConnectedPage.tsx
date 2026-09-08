@@ -25,7 +25,7 @@ export default function ConnectedPage({ connections, refresh }: Props) {
   const today = todayIso();
   const todayCount = countOn(connections, today);
   const remaining = Math.max(0, CONNECTIONS_DAILY_GOAL - todayCount);
-  const goalPct = Math.min(100, Math.round((todayCount / CONNECTIONS_DAILY_GOAL) * 100));
+  const over = Math.max(0, todayCount - CONNECTIONS_DAILY_GOAL);
 
   const range: DateRange =
     preset === '7d'
@@ -82,13 +82,20 @@ export default function ConnectedPage({ connections, refresh }: Props) {
             of {CONNECTIONS_DAILY_GOAL} today
             <span className="tally-date">{formatShort(today)}</span>
           </div>
-          <div className="goal-track">
-            <div className={`goal-fill ${todayCount >= CONNECTIONS_DAILY_GOAL ? 'met' : ''}`} style={{ width: `${goalPct}%` }} />
+          {/* One square per connection: the goal is a shape you fill in, not a
+              number you have to read. */}
+          <div
+            className="fifty"
+            role="img"
+            aria-label={`${todayCount} of ${CONNECTIONS_DAILY_GOAL} connections logged today`}
+          >
+            {Array.from({ length: CONNECTIONS_DAILY_GOAL }, (_, index) => (
+              <i key={index} className={index < todayCount ? 'on' : ''} />
+            ))}
           </div>
+          {over > 0 && <div className="fifty-over">+{over} past the goal</div>}
           <div className="tally-status">
-            {todayCount >= CONNECTIONS_DAILY_GOAL
-              ? `Goal met - ${todayCount - CONNECTIONS_DAILY_GOAL} over`
-              : `${remaining} to go`}
+            {todayCount >= CONNECTIONS_DAILY_GOAL ? 'Goal met' : `${remaining} to go`}
           </div>
         </div>
 

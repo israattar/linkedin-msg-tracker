@@ -113,7 +113,9 @@ export default function ActionButtons({
         >
           <kbd>{index + 1}</kbd>
           {action.label}
-          {action.id === suggestedActionId && <span className="tag">suggested</span>}
+          {/* The fill says "this one"; the label is here for screen readers,
+              which cannot see it. */}
+          {action.id === suggestedActionId && <span className="sr-only">, suggested</span>}
           <span className="to">{destinationLabel(action, contact)}</span>
         </button>
       ))}

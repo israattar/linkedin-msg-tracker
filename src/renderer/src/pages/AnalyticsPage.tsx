@@ -95,10 +95,10 @@ export default function AnalyticsPage({ contacts, connections }: Props) {
         <MiniStat label="Proposal out" value={inConversationWith(tracked, 'proposal')} />
         <MiniStat label="Active clients" value={counts.get('active-client') ?? 0} accent />
         <MiniStat label="Maybe later" value={counts.get('maybe-later') ?? 0} />
-        <MiniStat label="No response" value={counts.get('no-response') ?? 0} />
-        <MiniStat label="Went cold" value={counts.get('went-cold') ?? 0} />
-        <MiniStat label="Met, then went cold" value={metThenWentCold(tracked)} />
-        <MiniStat label="Not interested" value={counts.get('not-interested') ?? 0} />
+        <MiniStat label="No response" value={counts.get('no-response') ?? 0} loss />
+        <MiniStat label="Went cold" value={counts.get('went-cold') ?? 0} loss />
+        <MiniStat label="Met, then went cold" value={metThenWentCold(tracked)} loss />
+        <MiniStat label="Not interested" value={counts.get('not-interested') ?? 0} loss />
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
@@ -178,7 +178,7 @@ export default function AnalyticsPage({ contacts, connections }: Props) {
           <MiniStat label="Meetings" value={activity.meetings} />
           <MiniStat label="Proposals" value={activity.proposals} />
           <MiniStat label="Clients won" value={activity.clientsWon} accent />
-          <MiniStat label="Lost or parked" value={activity.lost} />
+          <MiniStat label="Lost or parked" value={activity.lost} loss />
         </div>
 
         <div className="week-chart">
@@ -252,9 +252,20 @@ function Cell({ value, hint }: { value: number; hint: string }) {
   );
 }
 
-function MiniStat({ label, value, accent = false }: { label: string; value: number; accent?: boolean }) {
+function MiniStat({
+  label,
+  value,
+  accent = false,
+  loss = false,
+}: {
+  label: string;
+  value: number;
+  accent?: boolean;
+  // People the pipeline lost. Worth reading in a different colour from the wins.
+  loss?: boolean;
+}) {
   return (
-    <div className={`mini-stat ${accent ? 'accent' : ''}`}>
+    <div className={`mini-stat ${accent ? 'accent' : ''} ${loss ? 'loss' : ''}`}>
       <div className="value">{value}</div>
       <div className="label">{label}</div>
     </div>
