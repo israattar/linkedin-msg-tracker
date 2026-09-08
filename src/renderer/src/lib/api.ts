@@ -6,6 +6,7 @@ import type {
   AddContactInput,
   ConnectionDay,
   Contact,
+  DeletedContact,
   HistoryEntry,
   Stage,
   TrackerApi,
@@ -36,6 +37,7 @@ function createBrowserMock(): TrackerApi {
     mockContact('Ben Carter', 'https://www.linkedin.com/in/ben-carter-19/', '', 'no-response', ago(35), { messagesSent: 3 }),
   ];
 
+  const deleted: DeletedContact[] = [];
   const connections: Record<string, number> = {};
   for (let day = 0; day < 21; day++) {
     // A plausible working week: busy days, lighter days, nothing at weekends.
@@ -110,7 +112,22 @@ function createBrowserMock(): TrackerApi {
     deleteContact: async (contactId) => {
       const index = contacts.findIndex((c) => c.id === contactId);
       if (index < 0) return false;
-      contacts.splice(index, 1);
+      const [contact] = contacts.splice(index, 1);
+      deleted.unshift({ contact, deletedAt: new Date().toISOString() });
+      return true;
+    },
+    listDeleted: async () => deleted,
+    restoreContact: async (contactId) => {
+      const index = deleted.findIndex((d) => d.contact.id === contactId);
+      if (index < 0) return null;
+      const [entry] = deleted.splice(index, 1);
+      contacts.unshift(entry.contact);
+      return entry.contact;
+    },
+    purgeContact: async (contactId) => {
+      const index = deleted.findIndex((d) => d.contact.id === contactId);
+      if (index < 0) return false;
+      deleted.splice(index, 1);
       return true;
     },
     saveDraft: async (contactId, text) => {
@@ -165,6 +182,17 @@ function createBrowserMock(): TrackerApi {
       message: 'Import is only available in the desktop app.',
     }),
     retryFailedSyncs: async () => ({ fixed: 0, remaining: 0 }),
+    getStorageInfo: async () => ({
+      kind: 'local' as const,
+      dir: 'browser preview',
+      file: 'browser preview',
+      warning: 'Browser preview: nothing here is saved anywhere.',
+      snapshotCount: 0,
+      lastSnapshot: null,
+    }),
+    exportBackup: async () => ({ ok: false as const, error: 'Only available in the desktop app.' }),
+    restoreBackup: async () => ({ ok: false as const, error: 'Only available in the desktop app.' }),
+    revealDataFolder: async () => {},
     onFocusRequested: () => () => {},
   };
 }

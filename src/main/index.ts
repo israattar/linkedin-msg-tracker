@@ -6,6 +6,7 @@ import { Store } from './store';
 import { SyncService } from './sync';
 import { registerIpc } from './ipc';
 import { checkAndNotify } from './notify';
+import { migrateExistingData, resolveStorage } from './paths';
 
 const REMINDER_CHECK_INTERVAL_MS = 60 * 60 * 1000; // hourly
 
@@ -18,7 +19,9 @@ function createWindow(): void {
     minWidth: 940,
     minHeight: 620,
     show: false,
-    backgroundColor: '#150f17',
+    // Matches --bg in theme.css, so there is no flash of another colour
+    // before the renderer paints.
+    backgroundColor: '#232320',
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -58,9 +61,15 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.israattar.linkedin-msg-tracker');
 
-    const store = await Store.open(app.getPath('userData'));
+    // Data prefers a OneDrive folder over AppData so it survives this
+    // machine. An older AppData file is copied across the first time.
+    const appDataDir = app.getPath('userData');
+    const storage = resolveStorage(appDataDir);
+    migrateExistingData(appDataDir, storage.dir);
+
+    const store = await Store.open(storage.dir);
     const sync = new SyncService(loadConfig());
-    registerIpc(store, sync);
+    registerIpc(store, sync, storage);
     createWindow();
 
     const runReminderCheck = (): void => checkAndNotify(store, () => mainWindow);

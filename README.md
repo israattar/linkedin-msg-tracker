@@ -88,8 +88,11 @@ interested by hand, or back into the conversation if they resurface.
   slug (editable), add a website if they have one, notes if you have any,
   and confirm whether the first message was sent.
 - **All** - search and filter everyone, click a row for the full history,
-  notes and actions, import the existing board, retry failed syncs, flag
-  someone for the Reply page, delete a contact.
+  notes and actions, flag someone for the Reply page, delete a contact.
+  Deleting is reversible: it moves the contact to **Recently deleted**, which
+  has its own filter chip, and an Undo appears straight after. The Data and
+  backups panel at the bottom shows where the file is saved and exports or
+  restores a copy.
 - **Analytics** - people messaged (7, 10, 30 days), connections made (7, 30
   days, all time), live counts per stage including "met, then went cold",
   the all-time funnel (messaged, replied, meeting, proposal, client),
@@ -176,12 +179,59 @@ Key decisions:
   means two things means nothing, so new colours need a new job first. Tokens
   live at the top of `src/renderer/src/theme.css`.
 
-## Data
+## Data and backups
 
-Contacts and the connection tally live in `contacts.json` under Electron's
-user data folder (`%APPDATA%/linkedin-msg-tracker`). The file carries a
-version number and upgrades itself on load: v4 retires the per-message and
-milestone stages, turning them into the message counter and the dated
-meeting/proposal flags. Team Hub credentials live in `.env`, which is
-gitignored; never commit it, and rotate the key if it may have been
-exposed.
+Everything the app knows lives in one file, `contacts.json`: contacts, the
+Recently deleted bin, and the connection tally. It carries a version number
+and upgrades itself on load (v4 retired the per-message and milestone stages,
+v5 added the bin and snapshots).
+
+### Where that file goes
+
+On startup the app picks a folder, in this order:
+
+1. A folder named in `data-location.json` in AppData, if one has been set.
+2. `%OneDrive%\Outreach Tracker\`, if OneDrive is signed in and writable.
+3. `%APPDATA%\linkedin-msg-tracker\`, as a fallback.
+
+OneDrive is preferred because a file that only exists in AppData dies with
+the laptop. If the app ends up on the fallback it says so in a banner across
+the top of every page, because a backup you think you have and do not is
+worse than no backup at all. The All page shows the exact path it is writing
+to, with an **Open folder** button.
+
+The first time it picks up a cloud folder, an existing AppData file is copied
+across, so signing in to OneDrive later never looks like data loss.
+
+### Three layers of protection
+
+| Layer | What it covers | Where it lives |
+| --- | --- | --- |
+| Recently deleted | A contact deleted by mistake. Kept indefinitely, restored with one click | Inside `contacts.json` |
+| Daily snapshots | A bad save, a bulk mistake, anything you want to roll back past. Last 10 days | `snapshots/` beside the data file |
+| OneDrive sync | The laptop dying, being stolen, or ransomware | Microsoft's servers, plus 30 days of OneDrive version history |
+| Export a copy | Anything at all, on your terms | Wherever you save it |
+
+Snapshots are taken once a day, on the first launch of that day, before
+anything can change the data. Writes are atomic (temp file, then rename), so
+a crash halfway through a save cannot corrupt the file.
+
+**Restore** reads an exported file back in and replaces everything, so it
+asks first. The day's snapshot is already on disk, so even that is
+reversible.
+
+### Setting this up on a new machine
+
+1. Sign in to OneDrive and let it finish its first sync.
+2. Install the app and open it.
+3. Go to **All** and check the **Data and backups** panel. It should say
+   *Backed up to OneDrive* and show a path inside your OneDrive folder.
+4. If a pink banner says **Not backed up**, OneDrive was not available. Fix
+   OneDrive, then restart the app.
+5. Optional: right click the `Outreach Tracker` folder in OneDrive and choose
+   **Always keep on this device**, so the file is local as well as in the
+   cloud.
+
+Team Hub credentials live in `.env`, which is gitignored; never commit it,
+and rotate the key if it may have been exposed. Sync is currently off, so
+that file is unused.

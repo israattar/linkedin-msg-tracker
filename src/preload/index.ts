@@ -12,6 +12,9 @@ const api: TrackerApi = {
   undoLastAction: () => ipcRenderer.invoke('contacts:undo'),
   deleteDraft: (contactId) => ipcRenderer.invoke('contacts:delete-draft', contactId),
   deleteContact: (contactId) => ipcRenderer.invoke('contacts:delete', contactId),
+  listDeleted: () => ipcRenderer.invoke('contacts:list-deleted'),
+  restoreContact: (contactId) => ipcRenderer.invoke('contacts:restore', contactId),
+  purgeContact: (contactId) => ipcRenderer.invoke('contacts:purge', contactId),
   saveDraft: (contactId, text) => ipcRenderer.invoke('contacts:save-draft', contactId, text),
   saveNotes: (contactId, text) => ipcRenderer.invoke('contacts:save-notes', contactId, text),
   setNeedsReply: (contactId, needsReply) =>
@@ -24,6 +27,10 @@ const api: TrackerApi = {
   getSyncStatus: () => ipcRenderer.invoke('sync:status'),
   importFromTeamHub: () => ipcRenderer.invoke('sync:import'),
   retryFailedSyncs: () => ipcRenderer.invoke('sync:retry'),
+  getStorageInfo: () => ipcRenderer.invoke('storage:info'),
+  exportBackup: () => ipcRenderer.invoke('storage:export'),
+  restoreBackup: () => ipcRenderer.invoke('storage:restore'),
+  revealDataFolder: () => ipcRenderer.invoke('storage:reveal'),
   onFocusRequested: (callback) => {
     const listener = (): void => callback();
     ipcRenderer.on('nav:focus', listener);

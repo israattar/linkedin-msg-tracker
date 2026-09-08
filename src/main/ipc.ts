@@ -1,13 +1,19 @@
 // IPC surface for the renderer. All state changes to contacts happen here,
 // in one place: apply locally first, then sync to Team Hub.
-import { ipcMain } from 'electron';
+import { app, dialog, ipcMain, shell } from 'electron';
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
 import type {
   AddContactInput,
   AddContactResult,
   ConnectionDay,
   Contact,
+  ExportResult,
   HistoryEntry,
+  RestoreResult,
+  StorageInfo,
 } from '../shared/types';
+import type { StorageLocation } from './paths';
 import { defaultFollowUpDate, getAction, ordinalMessage } from '../shared/stages';
 import { buildQueue } from '../shared/cadence';
 import { formatLogLine, formatShort, isIsoDate, todayIso } from '../shared/dates';
@@ -26,7 +32,7 @@ interface UndoEntry {
 const undoStack: UndoEntry[] = [];
 const UNDO_STACK_LIMIT = 20;
 
-export function registerIpc(store: Store, sync: SyncService): void {
+export function registerIpc(store: Store, sync: SyncService, storage: StorageLocation): void {
   ipcMain.handle('contacts:list', () => store.list());
 
   ipcMain.handle('contacts:add', async (_event, input: AddContactInput): Promise<AddContactResult> => {
@@ -168,19 +174,31 @@ export function registerIpc(store: Store, sync: SyncService): void {
     return true;
   });
 
-  // Removes a contact from the local tracker at any stage. There is no
+  // Deleting is reversible: the contact moves to the Recently deleted bin and
+  // stays there until it is restored or deliberately purged. There is no
   // delete endpoint for Team Hub (see README), so a synced card is left in
-  // place on the board; only the local record is removed.
+  // place on the board either way.
   ipcMain.handle('contacts:delete', (_event, contactId: string): boolean => {
-    const contact = store.get(contactId);
-    if (!contact) return false;
-    store.remove(contactId);
-    // Drop any undo entry referencing this contact so undo cannot resurrect it.
+    const entry = store.softDelete(contactId);
+    if (!entry) return false;
+    // Stage undo cannot reach into the bin, so drop those entries; restoring
+    // is what undoes a delete.
     for (let i = undoStack.length - 1; i >= 0; i--) {
       if (undoStack[i].contactId === contactId) undoStack.splice(i, 1);
     }
     return true;
   });
+
+  ipcMain.handle('contacts:list-deleted', () => store.deleted());
+
+  ipcMain.handle('contacts:restore', (_event, contactId: string): Contact | null =>
+    store.restore(contactId),
+  );
+
+  // The only call that actually destroys a contact.
+  ipcMain.handle('contacts:purge', (_event, contactId: string): boolean =>
+    store.purge(contactId),
+  );
 
   // Message drafts are a local scratchpad: saved quietly, never synced, and
   // deliberately not bumping updatedAt so typing does not reorder lists.
@@ -262,6 +280,59 @@ export function registerIpc(store: Store, sync: SyncService): void {
   ipcMain.handle('sync:import', () => sync.importAll(store));
 
   ipcMain.handle('sync:retry', () => sync.retryFailed(store));
+
+  // --- Backups --------------------------------------------------------------
+
+  ipcMain.handle('storage:info', async (): Promise<StorageInfo> => {
+    const snapshots = await store.snapshotInfo();
+    return {
+      kind: storage.kind,
+      dir: store.dataDir,
+      file: store.dataFile,
+      warning: storage.warning,
+      snapshotCount: snapshots.count,
+      lastSnapshot: snapshots.last,
+    };
+  });
+
+  ipcMain.handle('storage:reveal', async (): Promise<void> => {
+    shell.showItemInFolder(store.dataFile);
+  });
+
+  // A copy the user controls outright, somewhere the app will never touch it.
+  ipcMain.handle('storage:export', async (): Promise<ExportResult> => {
+    const stamp = todayIso();
+    const result = await dialog.showSaveDialog({
+      title: 'Save a backup',
+      defaultPath: join(app.getPath('documents'), `outreach-backup-${stamp}.json`),
+      filters: [{ name: 'JSON backup', extensions: ['json'] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false, error: 'Cancelled.' };
+    try {
+      await fs.writeFile(result.filePath, store.serialise(), 'utf8');
+      return { ok: true, file: result.filePath, contacts: store.counts().contacts };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Reading a backup replaces everything, so the renderer confirms first and
+  // the startup snapshot means the replaced version is still on disk.
+  ipcMain.handle('storage:restore', async (): Promise<RestoreResult> => {
+    const result = await dialog.showOpenDialog({
+      title: 'Restore from a backup',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON backup', extensions: ['json'] }],
+    });
+    const file = result.filePaths[0];
+    if (result.canceled || !file) return { ok: false, error: 'Cancelled.' };
+    try {
+      const counts = store.replaceAll(await fs.readFile(file, 'utf8'));
+      return { ok: true, ...counts };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
 }
 
 // "three messages" - how the No response log line names what was sent.

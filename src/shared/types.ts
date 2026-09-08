@@ -94,6 +94,37 @@ export interface ConnectionDay {
   count: number;
 }
 
+// A contact in the Recently deleted bin. Deleting never destroys anything on
+// its own; it moves the record here, where it stays until it is restored or
+// deliberately purged. Nothing empties this automatically.
+export interface DeletedContact {
+  contact: Contact;
+  deletedAt: string; // ISO timestamp
+}
+
+// Where the data file actually is, and whether that location is backed up.
+export interface StorageInfo {
+  kind: 'onedrive' | 'local' | 'custom';
+  dir: string;
+  file: string;
+  // Set when the app could not use the location it wanted. Shown in the UI,
+  // because silently falling back to an unbacked-up folder is the one failure
+  // the user would never notice on their own.
+  warning: string | null;
+  snapshotCount: number;
+  lastSnapshot: string | null; // ISO date
+}
+
+export type ExportResult =
+  | { ok: true; file: string; contacts: number }
+  | { ok: false; error: string };
+
+// Reading a previously exported file back in. Replaces everything, so the UI
+// asks first.
+export type RestoreResult =
+  | { ok: true; contacts: number; connections: number }
+  | { ok: false; error: string };
+
 export interface SyncStatus {
   configured: boolean;
   slotsMapped: boolean;
@@ -124,7 +155,12 @@ export interface TrackerApi {
   applyAction(contactId: string, actionId: string, followUpDate?: string): Promise<Contact | null>;
   undoLastAction(): Promise<Contact | null>;
   deleteDraft(contactId: string): Promise<boolean>;
+  // Moves a contact to the Recently deleted bin. Reversible via restoreContact.
   deleteContact(contactId: string): Promise<boolean>;
+  listDeleted(): Promise<DeletedContact[]>;
+  restoreContact(contactId: string): Promise<Contact | null>;
+  // The only call that actually destroys a contact.
+  purgeContact(contactId: string): Promise<boolean>;
   saveDraft(contactId: string, text: string): Promise<void>;
   saveNotes(contactId: string, text: string): Promise<void>;
   setNeedsReply(contactId: string, needsReply: boolean): Promise<Contact | null>;
@@ -138,5 +174,10 @@ export interface TrackerApi {
   getSyncStatus(): Promise<SyncStatus>;
   importFromTeamHub(): Promise<ImportResult>;
   retryFailedSyncs(): Promise<RetryResult>;
+  // Backups: where the data lives, writing a copy out, reading one back.
+  getStorageInfo(): Promise<StorageInfo>;
+  exportBackup(): Promise<ExportResult>;
+  restoreBackup(): Promise<RestoreResult>;
+  revealDataFolder(): Promise<void>;
   onFocusRequested(callback: () => void): () => void;
 }

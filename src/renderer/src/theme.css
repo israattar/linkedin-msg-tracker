@@ -1755,3 +1755,73 @@ kbd {
   font-weight: 650;
   color: var(--lime);
 }
+
+/* --------------------------------------------------------------------------
+   Recently deleted, and the backup panel
+   -------------------------------------------------------------------------- */
+
+/* Said on every page while backups are not running, because this is the one
+   failure the user would never spot on their own. */
+.storage-warning {
+  flex-shrink: 0;
+  padding: 10px 26px;
+  background: var(--pink-dim);
+  border-bottom: 1px solid var(--pink-deep);
+  color: var(--pink-strong);
+  font-size: 12.5px;
+}
+.storage-warning b {
+  color: var(--ink);
+}
+
+.undo-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.undo-banner .spacer {
+  flex: 1;
+}
+
+.bin-note {
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+.bin-row {
+  opacity: 0.82;
+}
+.bin-row:hover {
+  opacity: 1;
+}
+
+.backup-panel {
+  margin-top: 26px;
+}
+.backup-panel .actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.backup-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.backup-facts > div {
+  display: flex;
+  gap: 14px;
+  font-size: 12.5px;
+}
+.backup-facts .k {
+  width: 130px;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+.backup-facts .v {
+  color: var(--muted);
+  word-break: break-all;
+}

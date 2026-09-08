@@ -2,9 +2,16 @@
 // the queue and the connection tally are loaded here once and shared with
 // every page.
 import { useCallback, useEffect, useState } from 'react';
-import type { ConnectionDay, Contact, QueueItem, SyncStatus } from '../../shared/types';
+import type {
+  ConnectionDay,
+  Contact,
+  DeletedContact,
+  QueueItem,
+  StorageInfo,
+  SyncStatus,
+} from '../../shared/types';
 import { replyDueItems } from '../../shared/cadence';
-import { api } from './lib/api';
+import { api, isDesktop } from './lib/api';
 import { countOn } from './lib/connections';
 import { todayIso } from '../../shared/dates';
 import FocusPage from './pages/FocusPage';
@@ -22,18 +29,25 @@ export default function App() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [connections, setConnections] = useState<ConnectionDay[]>([]);
+  const [deleted, setDeleted] = useState<DeletedContact[]>([]);
+  const [storage, setStorage] = useState<StorageInfo | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextContacts, nextQueue, nextConnections, nextStatus] = await Promise.all([
-      api.listContacts(),
-      api.getQueue(),
-      api.listConnections(),
-      api.getSyncStatus(),
-    ]);
+    const [nextContacts, nextQueue, nextConnections, nextDeleted, nextStorage, nextStatus] =
+      await Promise.all([
+        api.listContacts(),
+        api.getQueue(),
+        api.listConnections(),
+        api.listDeleted(),
+        api.getStorageInfo(),
+        api.getSyncStatus(),
+      ]);
     setContacts(nextContacts);
     setQueue(nextQueue);
     setConnections(nextConnections);
+    setDeleted(nextDeleted);
+    setStorage(nextStorage);
     setSyncStatus(nextStatus);
   }, []);
 
@@ -75,13 +89,29 @@ export default function App() {
         )}
       </header>
 
+      {/* A backup that is not happening is the one failure nobody notices on
+          their own, so it is said on every page until it is fixed. */}
+      {storage?.warning && isDesktop && (
+        <div className="storage-warning">
+          <b>Not backed up.</b> {storage.warning}
+        </div>
+      )}
+
       <main className="page">
         {page === 'focus' && <FocusPage contacts={contacts} queue={queue} refresh={refresh} />}
         {page === 'reply' && <ReplyPage contacts={contacts} refresh={refresh} />}
         {page === 'talking' && <ConversationsPage contacts={contacts} refresh={refresh} />}
         {page === 'connected' && <ConnectedPage connections={connections} refresh={refresh} />}
         {page === 'add' && <AddPage contacts={contacts} refresh={refresh} />}
-        {page === 'all' && <AllPage contacts={contacts} syncStatus={syncStatus} refresh={refresh} />}
+        {page === 'all' && (
+          <AllPage
+            contacts={contacts}
+            deleted={deleted}
+            storage={storage}
+            syncStatus={syncStatus}
+            refresh={refresh}
+          />
+        )}
         {page === 'analytics' && <AnalyticsPage contacts={contacts} connections={connections} />}
       </main>
     </div>
