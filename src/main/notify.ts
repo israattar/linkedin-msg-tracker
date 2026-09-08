@@ -3,7 +3,7 @@
 import { Notification, type BrowserWindow } from 'electron';
 import { todayIso } from '../shared/dates';
 import type { Store } from './store';
-import { buildQueue } from './ipc';
+import { buildQueue } from '../shared/cadence';
 
 export function checkAndNotify(store: Store, getWindow: () => BrowserWindow | null): void {
   if (!Notification.isSupported()) return;

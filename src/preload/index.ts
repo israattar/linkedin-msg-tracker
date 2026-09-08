@@ -7,14 +7,20 @@ import type { AddContactInput, TrackerApi } from '../shared/types';
 const api: TrackerApi = {
   listContacts: () => ipcRenderer.invoke('contacts:list'),
   addContact: (input: AddContactInput) => ipcRenderer.invoke('contacts:add', input),
-  applyAction: (contactId, actionId) => ipcRenderer.invoke('contacts:act', contactId, actionId),
+  applyAction: (contactId, actionId, followUpDate) =>
+    ipcRenderer.invoke('contacts:act', contactId, actionId, followUpDate),
   undoLastAction: () => ipcRenderer.invoke('contacts:undo'),
   deleteDraft: (contactId) => ipcRenderer.invoke('contacts:delete-draft', contactId),
+  deleteContact: (contactId) => ipcRenderer.invoke('contacts:delete', contactId),
   saveDraft: (contactId, text) => ipcRenderer.invoke('contacts:save-draft', contactId, text),
+  saveNotes: (contactId, text) => ipcRenderer.invoke('contacts:save-notes', contactId, text),
   setNeedsReply: (contactId, needsReply) =>
     ipcRenderer.invoke('contacts:set-needs-reply', contactId, needsReply),
   markReplied: (contactId) => ipcRenderer.invoke('contacts:replied', contactId),
   getQueue: () => ipcRenderer.invoke('queue:list'),
+  listConnections: () => ipcRenderer.invoke('connections:list'),
+  logConnection: (delta) => ipcRenderer.invoke('connections:log', delta),
+  setConnections: (date, count) => ipcRenderer.invoke('connections:set', date, count),
   getSyncStatus: () => ipcRenderer.invoke('sync:status'),
   importFromTeamHub: () => ipcRenderer.invoke('sync:import'),
   retryFailedSyncs: () => ipcRenderer.invoke('sync:retry'),

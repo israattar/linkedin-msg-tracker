@@ -2,8 +2,7 @@
 // state of every stage, the conversion funnel, activity over a chosen date
 // range, and derived rates that point at what to improve.
 import { useMemo, useState } from 'react';
-import type { Contact } from '../../../shared/types';
-import { STAGES } from '../../../shared/stages';
+import type { ConnectionDay, Contact } from '../../../shared/types';
 import { formatShort } from '../../../shared/dates';
 import {
   activityInRange,
@@ -12,20 +11,22 @@ import {
   funnel,
   insights,
   metThenWentCold,
+  passedMilestone,
   rangeOfPastDays,
-  reachedCount,
   weeklyActivity,
   type DateRange,
 } from '../lib/analytics';
+import { totalIn } from '../lib/connections';
 import EmptyState from '../components/EmptyState';
 
 interface Props {
   contacts: Contact[];
+  connections: ConnectionDay[];
 }
 
 type Preset = '7d' | '30d' | 'custom';
 
-export default function AnalyticsPage({ contacts }: Props) {
+export default function AnalyticsPage({ contacts, connections }: Props) {
   const [preset, setPreset] = useState<Preset>('30d');
   const [customStart, setCustomStart] = useState(rangeOfPastDays(30).start);
   const [customEnd, setCustomEnd] = useState(rangeOfPastDays(1).end);
@@ -43,6 +44,7 @@ export default function AnalyticsPage({ contacts }: Props) {
   const activity = useMemo(() => activityInRange(tracked, range), [tracked, range]);
   const weeks = useMemo(() => weeklyActivity(tracked, range), [tracked, range]);
   const derived = useMemo(() => insights(tracked), [tracked]);
+  const allTimeConnections = connections.reduce((sum, day) => sum + day.count, 0);
 
   if (tracked.length === 0) {
     return (
@@ -68,32 +70,32 @@ export default function AnalyticsPage({ contacts }: Props) {
 
       <div className="stat-row">
         <div className="card stat-multi">
-          <div className="label">New people added and messaged</div>
+          <div className="label">New people messaged</div>
           <div className="cells">
-            <Cell value={enteredStage(tracked, 'first-msg', rangeOfPastDays(7))} hint="past 7 days" />
-            <Cell value={enteredStage(tracked, 'first-msg', rangeOfPastDays(10))} hint="past 10 days" />
-            <Cell value={enteredStage(tracked, 'first-msg', rangeOfPastDays(30))} hint="past 30 days" />
+            <Cell value={enteredStage(tracked, 'awaiting-reply', rangeOfPastDays(7))} hint="past 7 days" />
+            <Cell value={enteredStage(tracked, 'awaiting-reply', rangeOfPastDays(10))} hint="past 10 days" />
+            <Cell value={enteredStage(tracked, 'awaiting-reply', rangeOfPastDays(30))} hint="past 30 days" />
           </div>
         </div>
         <div className="card stat-multi">
           <div className="label">Connections made</div>
           <div className="cells">
-            <Cell value={enteredStage(tracked, 'connected', rangeOfPastDays(7))} hint="past 7 days" />
-            <Cell value={enteredStage(tracked, 'connected', rangeOfPastDays(30))} hint="past 30 days" />
-            {/* All time counts everyone who ever reached Connected, including
-                imports that arrived already past that stage. */}
-            <Cell value={reachedCount(tracked, 'connected')} hint="all time" />
+            <Cell value={totalIn(connections, rangeOfPastDays(7))} hint="past 7 days" />
+            <Cell value={totalIn(connections, rangeOfPastDays(30))} hint="past 30 days" />
+            <Cell value={allTimeConnections} hint="all time" />
           </div>
         </div>
       </div>
 
       <h2 className="section-label">Right now</h2>
       <div className="stat-grid">
+        <MiniStat label="Awaiting reply" value={counts.get('awaiting-reply') ?? 0} />
         <MiniStat label="Talking to you" value={counts.get('in-conversation') ?? 0} />
-        <MiniStat label="Meeting held" value={counts.get('meeting-held') ?? 0} />
-        <MiniStat label="Proposal sent" value={counts.get('proposal-sent') ?? 0} />
+        <MiniStat label="Met, still talking" value={inConversationWith(tracked, 'meeting')} />
+        <MiniStat label="Proposal out" value={inConversationWith(tracked, 'proposal')} />
         <MiniStat label="Active clients" value={counts.get('active-client') ?? 0} accent />
         <MiniStat label="Maybe later" value={counts.get('maybe-later') ?? 0} />
+        <MiniStat label="No response" value={counts.get('no-response') ?? 0} />
         <MiniStat label="Went cold" value={counts.get('went-cold') ?? 0} />
         <MiniStat label="Met, then went cold" value={metThenWentCold(tracked)} />
         <MiniStat label="Not interested" value={counts.get('not-interested') ?? 0} />
@@ -102,15 +104,15 @@ export default function AnalyticsPage({ contacts }: Props) {
       <div className="card" style={{ marginBottom: 14 }}>
         <h3 className="card-title">Funnel, all time</h3>
         <p className="card-sub">
-          How many people reached each stage, and the conversion from the stage before.
+          How many people got this far, and the conversion from the step before.
         </p>
         <div className="funnel">
           {steps.map((step) => (
-            <div key={step.stage} className="funnel-row">
-              <span className="f-label">{STAGES[step.stage].label}</span>
+            <div key={step.key} className="funnel-row">
+              <span className="f-label">{step.label}</span>
               <div className="f-track">
                 <div
-                  className={`f-bar ${step.stage === 'active-client' ? 'win' : ''}`}
+                  className={`f-bar ${step.key === 'client' ? 'win' : ''}`}
                   style={{ width: `${Math.max(2, (step.count / maxFunnel) * 100)}%` }}
                 />
               </div>
@@ -170,12 +172,13 @@ export default function AnalyticsPage({ contacts }: Props) {
         </div>
 
         <div className="stat-grid" style={{ marginBottom: 18 }}>
-          <MiniStat label="Added" value={activity.added} />
-          <MiniStat label="Connected" value={activity.connections} />
-          <MiniStat label="Conversations" value={activity.conversations} />
+          <MiniStat label="Messaged" value={activity.messaged} />
+          <MiniStat label="Connections" value={totalIn(connections, range)} />
+          <MiniStat label="Replies" value={activity.replies} />
           <MiniStat label="Meetings" value={activity.meetings} />
           <MiniStat label="Proposals" value={activity.proposals} />
           <MiniStat label="Clients won" value={activity.clientsWon} accent />
+          <MiniStat label="Lost or parked" value={activity.lost} />
         </div>
 
         <div className="week-chart">
@@ -192,19 +195,24 @@ export default function AnalyticsPage({ contacts }: Props) {
         <h3 className="card-title">What the numbers say</h3>
         <div className="insight-list">
           <Insight
-            label="Connection rate"
-            value={ratio(derived.connectionRate)}
-            hint="of first messages that turn into connections"
+            label="Reply rate"
+            value={ratio(derived.replyRate)}
+            hint="of everyone messaged who wrote back"
           />
           <Insight
-            label="Conversation rate"
-            value={ratio(derived.conversationRate)}
-            hint="of second messages that get a reply"
+            label="Meeting rate"
+            value={ratio(derived.meetingRate)}
+            hint="of conversations that reach a meeting"
           />
           <Insight
             label="Close rate"
             value={ratio(derived.closeRate)}
             hint="of proposals that become clients"
+          />
+          <Insight
+            label="Messages to a reply"
+            value={derived.avgMessagesToReply === null ? 'n/a' : String(derived.avgMessagesToReply)}
+            hint="average sent before they answered"
           />
           <Insight
             label="Average time to client"
@@ -219,6 +227,15 @@ export default function AnalyticsPage({ contacts }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+// Milestones counted only for live conversations, which is what "right now"
+// means on this page.
+function inConversationWith(contacts: Contact[], milestone: 'meeting' | 'proposal'): number {
+  return passedMilestone(
+    contacts.filter((c) => c.stage === 'in-conversation'),
+    milestone,
   );
 }
 

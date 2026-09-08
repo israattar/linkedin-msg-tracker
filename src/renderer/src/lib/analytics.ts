@@ -1,8 +1,8 @@
 // Pure calculations behind the Analytics page. Everything derives from the
-// contact list: history entries record the stage they moved a contact into,
-// so counting "who entered X during Y" is a filter over those entries.
-import type { Contact, Stage } from '../../../shared/types';
-import { PIPELINE_ORDER } from '../../../shared/stages';
+// contact list: history entries record the stage they moved a contact into and
+// the milestones they passed, so "who did X during Y" is a filter over those
+// entries.
+import type { Contact, Milestone, Stage } from '../../../shared/types';
 import { parseIsoDate, toIsoDate, todayIso } from '../../../shared/dates';
 
 export interface DateRange {
@@ -28,6 +28,24 @@ export function enteredStage(contacts: Contact[], stage: Stage, range?: DateRang
   ).length;
 }
 
+// Unique contacts that passed a milestone, optionally within a range. Falls
+// back to the date on the contact for records imported without a log line.
+export function passedMilestone(
+  contacts: Contact[],
+  milestone: Milestone,
+  range?: DateRange,
+): number {
+  return contacts.filter((c) => {
+    if (c.history.some((h) => h.milestone === milestone && inRange(h.date, range))) return true;
+    const date = milestoneDate(c, milestone);
+    return date !== null && inRange(date, range);
+  }).length;
+}
+
+export function milestoneDate(contact: Contact, milestone: Milestone): string | null {
+  return milestone === 'meeting' ? contact.meetingHeldDate : contact.proposalSentDate;
+}
+
 export function currentCounts(contacts: Contact[]): Map<Stage, number> {
   const counts = new Map<Stage, number>();
   for (const contact of contacts) {
@@ -38,47 +56,72 @@ export function currentCounts(contacts: Contact[]): Map<Stage, number> {
 
 // "Met and went cold": had a meeting at some point, now sitting in Went cold.
 export function metThenWentCold(contacts: Contact[]): number {
-  return contacts.filter(
-    (c) => c.stage === 'went-cold' && c.history.some((h) => h.stage === 'meeting-held'),
-  ).length;
+  return contacts.filter((c) => c.stage === 'went-cold' && hasMilestone(c, 'meeting')).length;
 }
 
-function pipelineIndex(stage: Stage): number {
-  return PIPELINE_ORDER.indexOf(stage);
+function hasMilestone(contact: Contact, milestone: Milestone): boolean {
+  return (
+    milestoneDate(contact, milestone) !== null ||
+    contact.history.some((h) => h.milestone === milestone)
+  );
 }
 
-// A contact "reached" a pipeline stage if it is at or past it now, or ever
-// passed through it. Imported contacts count from their imported stage, so
-// earlier stages they skipped are credited too.
-function furthestIndex(contact: Contact): number {
-  let furthest = pipelineIndex(contact.stage);
-  for (const entry of contact.history) {
-    if (!entry.stage) continue;
-    furthest = Math.max(furthest, pipelineIndex(entry.stage));
+// The funnel mixes stages and milestones, because that is how the pipeline
+// actually narrows: everyone messaged, the ones who wrote back, the ones who
+// took a meeting, the ones who got a proposal, the ones who signed.
+export type FunnelKey = 'messaged' | 'replied' | 'meeting' | 'proposal' | 'client';
+
+export const FUNNEL_LABELS: Record<FunnelKey, string> = {
+  messaged: 'Messaged',
+  replied: 'Replied',
+  meeting: 'Meeting held',
+  proposal: 'Proposal sent',
+  client: 'Active client',
+};
+
+const FUNNEL_ORDER: FunnelKey[] = ['messaged', 'replied', 'meeting', 'proposal', 'client'];
+
+// Whether a contact ever got this far, whatever they did afterwards.
+export function reached(contact: Contact, key: FunnelKey): boolean {
+  switch (key) {
+    case 'messaged':
+      return contact.stage !== 'draft' || contact.messagesSent > 0;
+    case 'replied':
+      return (
+        contact.stage === 'in-conversation' ||
+        contact.stage === 'active-client' ||
+        contact.stage === 'went-cold' ||
+        contact.history.some((h) => h.stage === 'in-conversation')
+      );
+    case 'meeting':
+      return hasMilestone(contact, 'meeting');
+    case 'proposal':
+      return hasMilestone(contact, 'proposal');
+    case 'client':
+      return contact.stage === 'active-client' || contact.history.some((h) => h.stage === 'active-client');
   }
-  return furthest;
 }
 
-export function reachedCount(contacts: Contact[], stage: Stage): number {
-  const index = pipelineIndex(stage);
-  return contacts.filter((c) => furthestIndex(c) >= index).length;
+export function reachedCount(contacts: Contact[], key: FunnelKey): number {
+  return contacts.filter((c) => reached(c, key)).length;
 }
 
 export interface FunnelStep {
-  stage: Stage;
+  key: FunnelKey;
+  label: string;
   count: number;
-  // Conversion from the previous pipeline stage, 0-100. Null for the first step.
+  // Conversion from the previous step, 0-100. Null for the first step.
   fromPrevious: number | null;
 }
 
 export function funnel(contacts: Contact[]): FunnelStep[] {
   let previous: number | null = null;
-  return PIPELINE_ORDER.map((stage) => {
-    const count = reachedCount(contacts, stage);
+  return FUNNEL_ORDER.map((key) => {
+    const count = reachedCount(contacts, key);
     const fromPrevious =
       previous === null ? null : previous === 0 ? 0 : Math.round((count / previous) * 100);
     previous = count;
-    return { stage, count, fromPrevious };
+    return { key, label: FUNNEL_LABELS[key], count, fromPrevious };
   });
 }
 
@@ -87,7 +130,7 @@ export interface WeekBucket {
   count: number;
 }
 
-// Stage moves per week across a range, for the activity bar chart.
+// Logged moves per week across a range, for the activity bar chart.
 export function weeklyActivity(contacts: Contact[], range: DateRange): WeekBucket[] {
   const start = startOfWeek(parseIsoDate(range.start));
   const end = parseIsoDate(range.end);
@@ -119,29 +162,33 @@ function startOfWeek(date: Date): Date {
 }
 
 export interface RangeActivity {
-  added: number;
-  connections: number;
-  conversations: number;
+  messaged: number;
+  replies: number;
   meetings: number;
   proposals: number;
   clientsWon: number;
+  lost: number;
 }
 
 export function activityInRange(contacts: Contact[], range: DateRange): RangeActivity {
   return {
-    added: enteredStage(contacts, 'first-msg', range),
-    connections: enteredStage(contacts, 'connected', range),
-    conversations: enteredStage(contacts, 'in-conversation', range),
-    meetings: enteredStage(contacts, 'meeting-held', range),
-    proposals: enteredStage(contacts, 'proposal-sent', range),
+    messaged: enteredStage(contacts, 'awaiting-reply', range),
+    replies: enteredStage(contacts, 'in-conversation', range),
+    meetings: passedMilestone(contacts, 'meeting', range),
+    proposals: passedMilestone(contacts, 'proposal', range),
     clientsWon: enteredStage(contacts, 'active-client', range),
+    lost:
+      enteredStage(contacts, 'no-response', range) +
+      enteredStage(contacts, 'went-cold', range) +
+      enteredStage(contacts, 'not-interested', range),
   };
 }
 
 export interface Insights {
-  connectionRate: number | null; // first msg -> connected
-  conversationRate: number | null; // second msg -> in conversation
+  replyRate: number | null; // messaged -> replied
+  meetingRate: number | null; // replied -> meeting held
   closeRate: number | null; // proposal -> client
+  avgMessagesToReply: number | null;
   avgDaysToClient: number | null;
   draftsPending: number;
 }
@@ -152,20 +199,22 @@ function percentage(part: number, whole: number): number | null {
 }
 
 export function insights(contacts: Contact[]): Insights {
-  const avgDays = averageDaysToClient(contacts);
   return {
-    connectionRate: percentage(reachedCount(contacts, 'connected'), reachedCount(contacts, 'first-msg')),
-    conversationRate: percentage(
-      reachedCount(contacts, 'in-conversation'),
-      reachedCount(contacts, 'second-msg'),
-    ),
-    closeRate: percentage(
-      reachedCount(contacts, 'active-client'),
-      reachedCount(contacts, 'proposal-sent'),
-    ),
-    avgDaysToClient: avgDays,
+    replyRate: percentage(reachedCount(contacts, 'replied'), reachedCount(contacts, 'messaged')),
+    meetingRate: percentage(reachedCount(contacts, 'meeting'), reachedCount(contacts, 'replied')),
+    closeRate: percentage(reachedCount(contacts, 'client'), reachedCount(contacts, 'proposal')),
+    avgMessagesToReply: averageMessagesToReply(contacts),
+    avgDaysToClient: averageDaysToClient(contacts),
     draftsPending: contacts.filter((c) => c.draft.trim().length > 0).length,
   };
+}
+
+// How many messages it usually takes before someone writes back. Only counts
+// contacts who did reply, since the silent ones have no answer yet.
+function averageMessagesToReply(contacts: Contact[]): number | null {
+  const counts = contacts.filter((c) => reached(c, 'replied')).map((c) => c.messagesSent);
+  if (counts.length === 0) return null;
+  return Math.round((counts.reduce((a, b) => a + b, 0) / counts.length) * 10) / 10;
 }
 
 // Mean days from first message to becoming a client, for contacts where both
@@ -173,7 +222,7 @@ export function insights(contacts: Contact[]): Insights {
 function averageDaysToClient(contacts: Contact[]): number | null {
   const spans: number[] = [];
   for (const contact of contacts) {
-    const first = contact.history.find((h) => h.stage === 'first-msg');
+    const first = contact.history.find((h) => h.stage === 'awaiting-reply');
     const won = contact.history.find((h) => h.stage === 'active-client');
     if (!first || !won) continue;
     const days =

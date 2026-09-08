@@ -1,14 +1,16 @@
-// Browse everyone: search, filter by stage, expand a row for the full log
-// and actions. Import and sync-retry live here too.
-import { useMemo, useState } from 'react';
+// Browse everyone: search and filter by stage over a plain list of rows.
+// Clicking a row opens that one contact in a modal with the full log, notes,
+// actions and delete. Import and sync-retry live here too.
+import { useEffect, useMemo, useState } from 'react';
 import type { Contact, Stage, SyncStatus } from '../../../shared/types';
-import { ALL_STAGES, STAGES } from '../../../shared/stages';
+import { ALL_STAGES, messagesSentLabel, STAGES } from '../../../shared/stages';
 import { daysSince, formatLogLine, formatShort } from '../../../shared/dates';
 import { api, isDesktop } from '../lib/api';
 import Avatar from '../components/Avatar';
 import StageBadge from '../components/StageBadge';
 import EmptyState from '../components/EmptyState';
 import ActionButtons from '../components/ActionButtons';
+import NotesBox from '../components/NotesBox';
 
 interface Props {
   contacts: Contact[];
@@ -19,9 +21,11 @@ interface Props {
 export default function AllPage({ contacts, syncStatus, refresh }: Props) {
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | 'all'>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState<'import' | 'retry' | null>(null);
   const [notice, setNotice] = useState('');
+
+  const selected = contacts.find((c) => c.id === selectedId) ?? null;
 
   const countByStage = useMemo(() => {
     const counts = new Map<Stage, number>();
@@ -54,14 +58,20 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
     await refresh();
   }
 
-  async function act(contactId: string, actionId: string): Promise<void> {
-    await api.applyAction(contactId, actionId);
+  async function act(contactId: string, actionId: string, followUpDate?: string): Promise<void> {
+    await api.applyAction(contactId, actionId, followUpDate);
     await refresh();
   }
 
   async function removeDraft(contactId: string): Promise<void> {
     await api.deleteDraft(contactId);
-    setExpandedId(null);
+    setSelectedId(null);
+    await refresh();
+  }
+
+  async function removeContact(contactId: string): Promise<void> {
+    await api.deleteContact(contactId);
+    setSelectedId(null);
     await refresh();
   }
 
@@ -125,86 +135,173 @@ export default function AllPage({ contacts, syncStatus, refresh }: Props) {
           </EmptyState>
         </div>
       ) : (
-        shown.map((contact) => {
-          const expanded = expandedId === contact.id;
-          return (
-            <div key={contact.id}>
-              <div
-                className="contact-row"
-                onClick={() => setExpandedId(expanded ? null : contact.id)}
-              >
-                <Avatar name={contact.name} size={36} />
-                <div className="grow">
-                  <div className="name">{contact.name}</div>
-                  <div className="meta">
-                    {contact.needsReply
-                      ? 'Waiting on your reply'
-                      : contact.followUpDate
-                        ? `Follow up ${formatShort(contact.followUpDate)}`
-                        : lastActivity(contact)}
-                  </div>
-                </div>
-                <StageBadge stage={contact.stage} />
-                <span
-                  className={`sync-dot ${contact.sync.state}`}
-                  title={syncTitle(contact)}
-                />
-                <span className="when">{formatShort(contact.updatedAt.slice(0, 10))}</span>
+        shown.map((contact) => (
+          <div key={contact.id} className="contact-row" onClick={() => setSelectedId(contact.id)}>
+            <Avatar name={contact.name} size={36} />
+            <div className="grow">
+              <div className="name">{contact.name}</div>
+              <div className="meta">
+                {/* How far into the chase they are is the useful fact for
+                    anyone still awaiting a reply. */}
+                {contact.stage === 'awaiting-reply'
+                  ? `${messagesSentLabel(contact.messagesSent)} - ${lastActivity(contact)}`
+                  : contact.needsReply
+                    ? 'Waiting on your reply'
+                    : contact.followUpDate
+                      ? `Follow up ${formatShort(contact.followUpDate)}`
+                      : lastActivity(contact)}
               </div>
-
-              {expanded && (
-                <div className="contact-detail">
-                  <div className="links">
-                    {contact.linkedinUrl && (
-                      <a href={contact.linkedinUrl} target="_blank" rel="noreferrer">
-                        LinkedIn profile
-                      </a>
-                    )}
-                    {contact.websiteUrl && (
-                      <a href={contact.websiteUrl} target="_blank" rel="noreferrer">
-                        Website
-                      </a>
-                    )}
-                  </div>
-
-                  {contact.history.length > 0 && (
-                    <div className="log">
-                      {[...contact.history].reverse().map((entry, index) => (
-                        <div key={index} className="line">
-                          {formatLogLine(entry)}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {contact.importedNotes && <div className="notes">{contact.importedNotes}</div>}
-
-                  <div className="actions">
-                    <ActionButtons contact={contact} onAct={(id) => void act(contact.id, id)} compact />
-                    {contact.stage !== 'draft' && !STAGES[contact.stage].terminal && (
-                      <button
-                        className="btn small"
-                        onClick={() => void toggleFlag(contact.id, !contact.needsReply)}
-                      >
-                        {contact.needsReply ? 'Clear reply flag' : 'Flag: needs my reply'}
-                      </button>
-                    )}
-                    {contact.stage === 'draft' && (
-                      <button className="btn small danger" onClick={() => void removeDraft(contact.id)}>
-                        Delete draft
-                      </button>
-                    )}
-                  </div>
-
-                  {contact.sync.state === 'error' && (
-                    <div className="sync-error">Sync failed: {contact.sync.message}</div>
-                  )}
-                </div>
-              )}
             </div>
-          );
-        })
+            {contact.meetingHeldDate && <span className="chip">Met</span>}
+            {contact.proposalSentDate && <span className="chip win">Proposal</span>}
+            <StageBadge stage={contact.stage} />
+            <span className={`sync-dot ${contact.sync.state}`} title={syncTitle(contact)} />
+            <span className="when">{formatShort(contact.updatedAt.slice(0, 10))}</span>
+          </div>
+        ))
       )}
+
+      {selected && (
+        <ContactModal
+          contact={selected}
+          onClose={() => setSelectedId(null)}
+          onAct={(id, followUpDate) => void act(selected.id, id, followUpDate)}
+          onToggleFlag={() => void toggleFlag(selected.id, !selected.needsReply)}
+          onDeleteDraft={() => void removeDraft(selected.id)}
+          onDeleteContact={() => void removeContact(selected.id)}
+        />
+      )}
+    </div>
+  );
+}
+
+interface ModalProps {
+  contact: Contact;
+  onClose: () => void;
+  onAct: (actionId: string, followUpDate?: string) => void;
+  onToggleFlag: () => void;
+  onDeleteDraft: () => void;
+  onDeleteContact: () => void;
+}
+
+// The full detail view for one contact, opened by clicking its row - a clear
+// "you are now looking at this one specific contact" state, with the delete
+// action tucked behind a confirm step since it cannot be undone.
+function ContactModal({ contact, onClose, onAct, onToggleFlag, onDeleteDraft, onDeleteContact }: ModalProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    setConfirmingDelete(false);
+  }, [contact.id]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const isLocalDraft = contact.stage === 'draft' && !contact.teamhubTaskId;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <Avatar name={contact.name} size={40} />
+          <div className="grow">
+            <div className="name">{contact.name}</div>
+            <div className="meta">
+              {contact.needsReply
+                ? 'Waiting on your reply'
+                : contact.followUpDate
+                  ? `Follow up ${formatShort(contact.followUpDate)}`
+                  : lastActivity(contact)}
+            </div>
+          </div>
+          <StageBadge stage={contact.stage} />
+          <button className="modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        <div className="modal-body">
+          <div className="links">
+            {contact.linkedinUrl && (
+              <a href={contact.linkedinUrl} target="_blank" rel="noreferrer">
+                LinkedIn profile
+              </a>
+            )}
+            {contact.websiteUrl && (
+              <a href={contact.websiteUrl} target="_blank" rel="noreferrer">
+                Website
+              </a>
+            )}
+          </div>
+
+          <div className="fact-row">
+            <span className="chip">{messagesSentLabel(contact.messagesSent)}</span>
+            {contact.meetingHeldDate && (
+              <span className="chip">Met {formatShort(contact.meetingHeldDate)}</span>
+            )}
+            {contact.proposalSentDate && (
+              <span className="chip win">Proposal {formatShort(contact.proposalSentDate)}</span>
+            )}
+          </div>
+
+          {contact.history.length > 0 && (
+            <div className="log">
+              {[...contact.history].reverse().map((entry, index) => (
+                <div key={index} className="line">
+                  {formatLogLine(entry)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {contact.importedNotes && <div className="notes">{contact.importedNotes}</div>}
+
+          <NotesBox contact={contact} />
+
+          <div className="actions">
+            <ActionButtons contact={contact} onAct={onAct} compact />
+            {contact.stage !== 'draft' && !STAGES[contact.stage].terminal && (
+              <button className="btn small" onClick={onToggleFlag}>
+                {contact.needsReply ? 'Clear reply flag' : 'Flag: needs my reply'}
+              </button>
+            )}
+          </div>
+
+          {contact.sync.state === 'error' && (
+            <div className="sync-error">Sync failed: {contact.sync.message}</div>
+          )}
+
+          <div className="modal-danger">
+            {isLocalDraft ? (
+              <button className="btn small danger" onClick={onDeleteDraft}>
+                Delete draft
+              </button>
+            ) : confirmingDelete ? (
+              <>
+                <span className="faint-text">
+                  Removes {contact.name} from the tracker only
+                  {contact.teamhubTaskId ? ' - their Team Hub card is not deleted.' : '.'} This can't be undone.
+                </span>
+                <button className="btn small danger" onClick={onDeleteContact}>
+                  Confirm delete
+                </button>
+                <button className="btn small quiet" onClick={() => setConfirmingDelete(false)}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button className="btn small danger" onClick={() => setConfirmingDelete(true)}>
+                Delete contact
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

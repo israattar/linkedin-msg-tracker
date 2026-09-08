@@ -140,8 +140,14 @@ button {
 
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   height: 100%;
+  /* Seven tabs fit a normal window; a narrow one scrolls rather than wraps. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -149,7 +155,8 @@ button {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 0 14px;
+  white-space: nowrap;
+  padding: 0 11px;
   border: none;
   background: none;
   color: var(--muted);
@@ -385,33 +392,22 @@ kbd {
   background: var(--surface-2);
   color: var(--muted);
 }
-.badge.stage-first-msg {
-  background: rgba(201, 242, 78, 0.07);
-  color: #b0c47e;
-}
-.badge.stage-connected {
-  background: rgba(201, 242, 78, 0.11);
+.badge.stage-awaiting-reply {
+  background: rgba(201, 242, 78, 0.1);
   color: #bfd689;
 }
-.badge.stage-second-msg {
-  background: rgba(201, 242, 78, 0.15);
-  color: #cfe58a;
-}
 .badge.stage-in-conversation {
-  background: rgba(201, 242, 78, 0.2);
+  background: rgba(201, 242, 78, 0.22);
   color: #dcef9a;
-}
-.badge.stage-meeting-held {
-  background: rgba(201, 242, 78, 0.26);
-  color: #e5f7ac;
-}
-.badge.stage-proposal-sent {
-  background: rgba(201, 242, 78, 0.34);
-  color: var(--lime);
 }
 .badge.stage-active-client {
   background: var(--lime);
   color: var(--lime-ink);
+}
+.badge.stage-no-response {
+  background: var(--bg-raise);
+  border: 1px solid var(--border);
+  color: #8f9a83;
 }
 .badge.stage-went-cold {
   background: var(--bg-raise);
@@ -824,9 +820,7 @@ kbd {
 .contact-row:hover {
   border-color: var(--border-strong);
 }
-.contact-row + .contact-row,
-.contact-row + .contact-detail,
-.contact-detail + .contact-row {
+.contact-row + .contact-row {
   margin-top: 8px;
 }
 .contact-row .grow {
@@ -849,32 +843,87 @@ kbd {
   white-space: nowrap;
 }
 
-.contact-detail {
-  margin-top: -4px;
-  padding: 18px 20px;
-  background: var(--bg-raise);
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 var(--radius) var(--radius);
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 6, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
 }
-.contact-detail .links {
+.modal-card {
+  width: 100%;
+  max-width: 540px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: var(--bg-raise);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-raise);
+}
+.modal-head .name {
+  font-weight: 650;
+  font-size: 14.5px;
+}
+.modal-head .meta {
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 2px;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.modal-close:hover {
+  color: var(--ink);
+}
+.modal-body {
+  padding: 18px 20px 20px;
+}
+.modal-danger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.modal-body .links {
   display: flex;
   gap: 16px;
   font-size: 12.5px;
   margin-bottom: 12px;
 }
-.contact-detail .log {
+.modal-body .log {
   display: flex;
   flex-direction: column;
   gap: 5px;
   margin-bottom: 14px;
 }
-.contact-detail .log .line {
+.modal-body .log .line {
   font-size: 12.5px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.contact-detail .notes {
+.modal-body .notes {
   white-space: pre-wrap;
   font-size: 12px;
   color: var(--faint);
@@ -886,12 +935,102 @@ kbd {
   max-height: 140px;
   overflow-y: auto;
 }
-.contact-detail .actions {
+.my-notes {
+  padding: 0 16px 12px;
+}
+.my-notes-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.my-notes textarea {
+  min-height: 52px;
+  font-size: 12.5px;
+}
+/* Inside the modal body, horizontal padding is already provided by the
+   parent, so the notes box only needs its own top spacing. */
+.modal-body .my-notes {
+  padding: 0 0 4px;
+  margin-top: 4px;
+}
+.modal-body .actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
-.contact-detail .sync-error {
+
+/* --------------------------------------------------------------------------
+   Follow-up picker (shown when a contact is parked as "maybe later")
+   -------------------------------------------------------------------------- */
+
+.followup-picker {
+  flex-basis: 100%;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+.followup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.followup-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.followup-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--bg-raise);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.followup-option:hover {
+  background: var(--surface-2);
+  border-color: var(--lime);
+}
+.followup-option.default {
+  border-color: var(--lime-deep);
+}
+.followup-option .lbl {
+  font-size: 13px;
+  font-weight: 650;
+}
+.followup-option .date {
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.followup-custom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.followup-custom .lbl {
+  font-size: 12px;
+  color: var(--muted);
+}
+.modal-body .sync-error {
   margin-top: 12px;
   font-size: 12px;
   color: var(--pink-strong);
@@ -1156,5 +1295,357 @@ kbd {
 }
 .insight .i-hint {
   font-size: 12px;
+  color: var(--faint);
+}
+
+/* --------------------------------------------------------------------------
+   Milestone and fact chips. Small, quiet markers that sit alongside a name.
+   -------------------------------------------------------------------------- */
+
+.chip {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.chip.win {
+  border-color: var(--lime-deep);
+  color: var(--lime);
+}
+.chip.warn {
+  border-color: var(--pink-deep);
+  color: var(--pink-strong);
+}
+.fact-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* The move a timer is proposing, marked rather than reordered so the number
+   keys stay where they were. */
+.action-row.suggested {
+  border-color: var(--lime);
+  background: var(--lime-dim);
+}
+.action-row .tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--lime-ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.btn.small.suggested {
+  border-color: var(--lime);
+  background: var(--lime-dim);
+  color: var(--lime);
+}
+
+/* --------------------------------------------------------------------------
+   In conversation: four overlapping views of the same people
+   -------------------------------------------------------------------------- */
+
+.convo-section {
+  margin-bottom: 22px;
+}
+.convo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.convo-head .section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.convo-head .section-label .count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.convo-head .section-label.urgent .count {
+  background: var(--pink);
+  color: #fff;
+}
+.convo-head .section-label.win .count {
+  background: var(--lime);
+  color: var(--lime-ink);
+}
+.convo-head .hint {
+  font-size: 12px;
+  color: var(--faint);
+}
+.convo-empty {
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  color: var(--faint);
+}
+.convo-row {
+  background: var(--bg-raise);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.convo-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.convo-main .grow {
+  flex: 1;
+  min-width: 0;
+}
+.convo-main .name {
+  font-weight: 650;
+  font-size: 13.5px;
+}
+.convo-main .meta {
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 2px;
+}
+.convo-main .milestones {
+  display: flex;
+  gap: 6px;
+}
+.convo-detail {
+  padding: 0 14px 12px;
+  border-top: 1px solid var(--border);
+}
+.convo-detail .actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+}
+.convo-detail .my-notes {
+  padding: 12px 0 0;
+}
+
+/* --------------------------------------------------------------------------
+   Connected: the daily tally and the numbers behind it
+   -------------------------------------------------------------------------- */
+
+.tally-card {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.tally-left {
+  flex: 1;
+  min-width: 220px;
+}
+.tally-count {
+  font-size: 64px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--lime);
+  font-variant-numeric: tabular-nums;
+}
+.tally-of {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.tally-date {
+  font-size: 12px;
+  color: var(--faint);
+}
+.goal-track {
+  height: 8px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.goal-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--lime-deep);
+  transition: width 0.18s ease;
+}
+.goal-fill.met {
+  background: var(--lime);
+}
+.tally-status {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+.tally-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.tally-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  border: none;
+  background: var(--lime);
+  color: var(--lime-ink);
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.12s ease;
+}
+.tally-add:hover {
+  background: var(--lime-strong);
+}
+.tally-add:active {
+  transform: scale(0.96);
+}
+.tally-add .plus {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+.tally-add .sub {
+  font-size: 12px;
+  font-weight: 650;
+  opacity: 0.75;
+}
+.tally-keys {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Three stacked rows per day: the count, the bar, the date. The value and
+   label rows are fixed height so the bars share one plot band, and the goal
+   line can span exactly that band. */
+.day-chart {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 180px;
+}
+.day-chart .goal-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18px; /* value row (14) + gap (4) */
+  bottom: 18px; /* label row (14) + gap (4) */
+  pointer-events: none;
+}
+.day-chart .goal-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--goal-pct, 50%);
+  border-top: 1px dashed var(--border-strong);
+}
+.day-chart .goal-line span {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--goal-pct, 50%) + 3px);
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.dc-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.dc-value {
+  height: 14px;
+  font-size: 10.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+/* Owns the leftover height, so a bar's percentage is a percentage of the
+   plot band rather than of whatever flex happens to leave over. */
+.dc-track {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.dc-bar {
+  width: 100%;
+  max-width: 34px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--lime-dim);
+  border: 1px solid var(--lime-deep);
+  transition: background 0.12s ease;
+}
+.dc-col:hover .dc-bar {
+  background: rgba(201, 242, 78, 0.3);
+}
+.dc-col.met .dc-bar {
+  background: var(--lime);
+  border-color: var(--lime);
+}
+.dc-col.editing .dc-bar {
+  background: var(--pink-dim);
+  border-color: var(--pink);
+}
+.dc-label {
+  height: 14px;
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.day-editor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.day-editor .lbl {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.day-editor input {
+  width: 96px;
+}
+.mini-stat .hint {
+  margin-top: 2px;
+  font-size: 11px;
   color: var(--faint);
 }

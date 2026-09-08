@@ -26,6 +26,19 @@ export function addMonthsIso(iso: string, months: number): string {
   return toIsoDate(date);
 }
 
+export function addDaysIso(iso: string, days: number): string {
+  const date = parseIsoDate(iso);
+  date.setDate(date.getDate() + days);
+  return toIsoDate(date);
+}
+
+// True for a well-formed local ISO date that is also a real calendar day, so
+// "2026-02-31" is rejected rather than silently rolling into March.
+export function isIsoDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  return toIsoDate(parseIsoDate(value)) === value;
+}
+
 export function daysSince(iso: string): number {
   const ms = Date.now() - parseIsoDate(iso).getTime();
   return Math.floor(ms / 86_400_000);

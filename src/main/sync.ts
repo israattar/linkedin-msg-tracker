@@ -4,7 +4,14 @@
 // the app stays fully usable when Team Hub is unreachable. Failed syncs mark
 // the contact with an error and are reconciled later via retryFailed().
 import type { Contact, ImportResult, RetryResult, Stage, SyncStatus } from '../shared/types';
-import { SYNCED_STAGES, STAGES, stageForSlotTitle } from '../shared/stages';
+import {
+  messagesSentForSlotTitle,
+  milestoneForSlotTitle,
+  slotTitleRank,
+  SYNCED_STAGES,
+  STAGES,
+  stageForSlotTitle,
+} from '../shared/stages';
 import { formatLogLine, isoDateToDueDateTime, todayIso } from '../shared/dates';
 import { normaliseLinkedinUrl } from '../shared/linkedin';
 import { TeamhubClient, type TeamhubTask } from './teamhub';
@@ -19,6 +26,9 @@ export class SyncService {
   private readonly envPath: string;
   private slotIdByStage = new Map<Stage, string>();
   private stageBySlotId = new Map<string, Stage>();
+  // Kept so an import can read what a card's column was called, which is how
+  // milestone columns and per-message columns are recognised.
+  private slotTitleById = new Map<string, string>();
   private unmappedStages: Stage[] = [];
   private slotsLoaded = false;
 
@@ -187,6 +197,10 @@ export class SyncService {
           skipped += 1;
           continue;
         }
+        // The column title still carries meaning the stage alone has lost:
+        // "Meeting held" is a milestone now, "Second msg" a message count.
+        const slotTitle = (task.slotId ? this.slotTitleById.get(task.slotId) : '') ?? '';
+        const milestone = milestoneForSlotTitle(slotTitle);
 
         const existing = this.matchExisting(store, task);
         if (existing) {
@@ -196,6 +210,8 @@ export class SyncService {
           existing.importedNotes = htmlToText(task.content ?? '');
           if (!existing.linkedinUrl) existing.linkedinUrl = extractLinkedinUrl(task.content ?? '');
           if (!existing.websiteUrl) existing.websiteUrl = extractWebsiteUrl(task.content ?? '');
+          if (milestone === 'meeting') existing.meetingHeldDate ??= todayIso();
+          if (milestone === 'proposal') existing.proposalSentDate ??= todayIso();
           if (existing.stage !== stage) {
             existing.stage = stage;
             existing.followUpDate = stage === 'maybe-later' ? (existing.followUpDate ?? todayIso()) : null;
@@ -207,7 +223,7 @@ export class SyncService {
           continue;
         }
 
-        store.upsert(contactFromTask(task, stage));
+        store.upsert(contactFromTask(task, stage, slotTitle));
         imported += 1;
       }
 
@@ -256,11 +272,22 @@ export class SyncService {
 
     this.slotIdByStage.clear();
     this.stageBySlotId.clear();
+    this.slotTitleById.clear();
+
+    // Several old column titles now fold into one stage, so a board can offer
+    // more than one match. Moves go to the best-named column (rank 0 is the
+    // stage's own title); reads still recognise every one of them.
+    const best = new Map<Stage, number>();
     for (const slot of slots) {
       const stage = stageForSlotTitle(slot.title);
-      if (stage && !this.slotIdByStage.has(stage)) {
+      if (!stage) continue;
+      this.stageBySlotId.set(slot.id, stage);
+      this.slotTitleById.set(slot.id, slot.title);
+
+      const rank = slotTitleRank(stage, slot.title) ?? Number.MAX_SAFE_INTEGER;
+      if (rank < (best.get(stage) ?? Number.MAX_SAFE_INTEGER)) {
+        best.set(stage, rank);
         this.slotIdByStage.set(stage, slot.id);
-        this.stageBySlotId.set(slot.id, stage);
       }
     }
     this.unmappedStages = SYNCED_STAGES.filter((s) => !this.slotIdByStage.has(s));
@@ -343,15 +370,17 @@ function extractWebsiteUrl(content: string): string {
   return extractUrls(content).find((url) => !/linkedin\.com/i.test(url)) ?? '';
 }
 
-function contactFromTask(task: TeamhubTask, stage: Stage): Contact {
+function contactFromTask(task: TeamhubTask, stage: Stage, slotTitle: string): Contact {
   const content = task.content ?? '';
   const now = new Date().toISOString();
+  const today = todayIso();
   const followUpDate =
     stage === 'maybe-later'
       ? task.dueDate
         ? task.dueDate.slice(0, 10)
-        : todayIso()
+        : today
       : null;
+  const milestone = milestoneForSlotTitle(slotTitle);
 
   return {
     id: crypto.randomUUID(),
@@ -360,10 +389,18 @@ function contactFromTask(task: TeamhubTask, stage: Stage): Contact {
     linkedinUrl: extractLinkedinUrl(content),
     websiteUrl: extractWebsiteUrl(content),
     stage,
+    // An imported card has clearly been messaged; a per-message column says
+    // how many times. The timers start from the import rather than pretending
+    // to know when the last message actually went out.
+    messagesSent: stage === 'awaiting-reply' ? messagesSentForSlotTitle(slotTitle) : 1,
+    lastMessageDate: today,
+    meetingHeldDate: milestone === 'meeting' ? today : null,
+    proposalSentDate: milestone === 'proposal' ? today : null,
     followUpDate,
-    history: [{ date: todayIso(), text: 'Imported from Team Hub', stage }],
+    history: [{ date: today, text: 'Imported from Team Hub', stage }],
     pendingLines: [],
     importedNotes: htmlToText(content),
+    notes: '',
     needsReply: false,
     draft: '',
     sync: { state: 'synced' },

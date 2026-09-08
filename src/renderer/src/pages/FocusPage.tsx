@@ -2,7 +2,7 @@
 // number keys. 1-9 pick an action, S skips, Z undoes the last move.
 import { useEffect, useMemo, useState } from 'react';
 import type { Contact, QueueItem } from '../../../shared/types';
-import { PIPELINE_ORDER, STAGES } from '../../../shared/stages';
+import { messagesSentLabel, PIPELINE_ORDER, STAGES } from '../../../shared/stages';
 import { formatLogLine } from '../../../shared/dates';
 import { api } from '../lib/api';
 import Avatar from '../components/Avatar';
@@ -19,6 +19,7 @@ interface Props {
 export default function FocusPage({ contacts, queue, refresh }: Props) {
   const [skippedIds, setSkippedIds] = useState<string[]>([]);
   const [clearedToday, setClearedToday] = useState(0);
+  const [pickingFollowUp, setPickingFollowUp] = useState(false);
 
   const contactById = useMemo(
     () => new Map(contacts.map((c) => [c.id, c])),
@@ -30,9 +31,9 @@ export default function FocusPage({ contacts, queue, refresh }: Props) {
   const current = currentItem ? (contactById.get(currentItem.contactId) ?? null) : null;
   const total = clearedToday + queue.length;
 
-  async function act(actionId: string): Promise<void> {
+  async function act(actionId: string, followUpDate?: string): Promise<void> {
     if (!current) return;
-    const result = await api.applyAction(current.id, actionId);
+    const result = await api.applyAction(current.id, actionId, followUpDate);
     if (result) setClearedToday((n) => n + 1);
     await refresh();
   }
@@ -49,26 +50,17 @@ export default function FocusPage({ contacts, queue, refresh }: Props) {
     await refresh();
   }
 
-  // Keyboard shortcuts. Disabled while typing in a form field.
+  // Skip and undo. The action keys (1-9) belong to ActionButtons, which owns
+  // the follow-up picker they can open. Disabled while typing in a form field
+  // or while that picker has the keyboard.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       const target = event.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return;
+      if (pickingFollowUp) return;
 
-      if (event.key === 's' || event.key === 'S') {
-        skip();
-        return;
-      }
-      if (event.key === 'z' || event.key === 'Z') {
-        void undo();
-        return;
-      }
-      if (!current) return;
-      const index = Number(event.key) - 1;
-      const actions = STAGES[current.stage].actions;
-      if (index >= 0 && index < actions.length) {
-        void act(actions[index].id);
-      }
+      if (event.key === 's' || event.key === 'S') skip();
+      if (event.key === 'z' || event.key === 'Z') void undo();
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -139,6 +131,11 @@ export default function FocusPage({ contacts, queue, refresh }: Props) {
               />
             ))}
             <span className="label">{STAGES[current.stage].label}</span>
+            {current.stage === 'awaiting-reply' && (
+              <span className="label faint-text">{messagesSentLabel(current.messagesSent)}</span>
+            )}
+            {current.meetingHeldDate && <span className="chip">Met</span>}
+            {current.proposalSentDate && <span className="chip win">Proposal</span>}
           </div>
         )}
 
@@ -152,7 +149,13 @@ export default function FocusPage({ contacts, queue, refresh }: Props) {
           </div>
         )}
 
-        <ActionButtons contact={current} onAct={(id) => void act(id)} />
+        <ActionButtons
+          contact={current}
+          onAct={(id, followUpDate) => void act(id, followUpDate)}
+          keyboard
+          onPickingChange={setPickingFollowUp}
+          suggestedActionId={currentItem?.suggestedActionId}
+        />
 
         <div className="focus-foot">
           <span>

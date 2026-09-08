@@ -1,30 +1,39 @@
-// App shell: top bar with the three tabs and the Team Hub status pill.
-// Contacts and the queue are loaded here once and shared with every page.
+// App shell: top bar with the tabs and the Team Hub status pill. Contacts,
+// the queue and the connection tally are loaded here once and shared with
+// every page.
 import { useCallback, useEffect, useState } from 'react';
-import type { Contact, QueueItem, SyncStatus } from '../../shared/types';
+import type { ConnectionDay, Contact, QueueItem, SyncStatus } from '../../shared/types';
+import { replyDueItems } from '../../shared/cadence';
 import { api } from './lib/api';
+import { countOn } from './lib/connections';
+import { todayIso } from '../../shared/dates';
 import FocusPage from './pages/FocusPage';
 import ReplyPage from './pages/ReplyPage';
+import ConversationsPage from './pages/ConversationsPage';
+import ConnectedPage from './pages/ConnectedPage';
 import AddPage from './pages/AddPage';
 import AllPage from './pages/AllPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 
-type Page = 'focus' | 'reply' | 'add' | 'all' | 'analytics';
+type Page = 'focus' | 'reply' | 'talking' | 'connected' | 'add' | 'all' | 'analytics';
 
 export default function App() {
   const [page, setPage] = useState<Page>('focus');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [connections, setConnections] = useState<ConnectionDay[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
   const refresh = useCallback(async () => {
-    const [nextContacts, nextQueue, nextStatus] = await Promise.all([
+    const [nextContacts, nextQueue, nextConnections, nextStatus] = await Promise.all([
       api.listContacts(),
       api.getQueue(),
+      api.listConnections(),
       api.getSyncStatus(),
     ]);
     setContacts(nextContacts);
     setQueue(nextQueue);
+    setConnections(nextConnections);
     setSyncStatus(nextStatus);
   }, []);
 
@@ -35,9 +44,9 @@ export default function App() {
   }, [refresh]);
 
   const pill = pillState(syncStatus);
-  const replyCount = contacts.filter(
-    (c) => c.stage === 'connected' || (c.stage !== 'draft' && c.needsReply),
-  ).length;
+  const replyCount = replyDueItems(contacts).length;
+  const talkingCount = contacts.filter((c) => c.stage === 'in-conversation').length;
+  const connectedToday = countOn(connections, todayIso());
 
   return (
     <div className="app">
@@ -49,6 +58,8 @@ export default function App() {
         <nav className="tabs">
           <TabButton id="focus" label="Focus" page={page} onSelect={setPage} count={queue.length} />
           <TabButton id="reply" label="Reply" page={page} onSelect={setPage} count={replyCount} />
+          <TabButton id="talking" label="In conversation" page={page} onSelect={setPage} count={talkingCount} />
+          <TabButton id="connected" label="Connected" page={page} onSelect={setPage} count={connectedToday} />
           <TabButton id="add" label="Add" page={page} onSelect={setPage} />
           <TabButton id="all" label="All" page={page} onSelect={setPage} />
           <TabButton id="analytics" label="Analytics" page={page} onSelect={setPage} />
@@ -62,9 +73,11 @@ export default function App() {
       <main className="page">
         {page === 'focus' && <FocusPage contacts={contacts} queue={queue} refresh={refresh} />}
         {page === 'reply' && <ReplyPage contacts={contacts} refresh={refresh} />}
+        {page === 'talking' && <ConversationsPage contacts={contacts} refresh={refresh} />}
+        {page === 'connected' && <ConnectedPage connections={connections} refresh={refresh} />}
         {page === 'add' && <AddPage contacts={contacts} refresh={refresh} />}
         {page === 'all' && <AllPage contacts={contacts} syncStatus={syncStatus} refresh={refresh} />}
-        {page === 'analytics' && <AnalyticsPage contacts={contacts} />}
+        {page === 'analytics' && <AnalyticsPage contacts={contacts} connections={connections} />}
       </main>
     </div>
   );

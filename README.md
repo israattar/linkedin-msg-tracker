@@ -13,38 +13,82 @@ paste in.
 ## The pipeline
 
 ```
-First msg -> Connected -> Second msg -> In conversation
-          -> Meeting held -> Proposal sent -> Active client
+Draft -> Awaiting reply -> In conversation -> Active client
 
-Exits: Maybe later (follow-up after 1 month), Went cold, Not interested
+Exits: No response (three messages, still silence), Maybe later (follow up
+       in 1 week, 2 weeks, 1 month or a date you pick), Went cold,
+       Not interested
 ```
+
+Three things deliberately are **not** stages:
+
+- **Messages are a counter.** "First message" and "second message" are the
+  same queue at different points, so a contact awaiting a reply carries the
+  number of messages sent instead of moving between stages.
+- **Meetings and proposals are milestones.** They are dated flags on a
+  contact, so one person can have held a meeting *and* been sent a proposal
+  and still read as "In conversation" everywhere.
+- **Connections are a tally.** At fifty a day nobody wants a card each, so
+  the Connected page counts them per day and never ties them to a contact.
 
 Each contact is one card on the Team Hub board. A stage change moves the
 card to the matching column, stamps today's date into the card description,
 and (for "maybe later") sets the card's due date to the follow-up date.
 
+Choosing "maybe later" asks when the contact should come back: one of the
+preset timeframes (a month is the default) or any date from the calendar,
+each shown with the date it resolves to. That date is stored on the contact,
+written into their log line and Team Hub due date, and brings them back into
+the Focus queue on the day it falls due.
+
+### The chase cadence
+
+Silence is measured from the last message you sent. Nothing moves on its
+own: a timer surfaces the contact in Focus and Reply with the move
+pre-selected as one keypress, and it stays put until you press it.
+
+| Situation | After | What appears |
+| --- | --- | --- |
+| First message, no reply | 3 days | Send the second |
+| Second message, no reply | 7 days | Send the final |
+| Final message, no reply | 7 days | Move to **No response** |
+| In conversation, gone quiet | 3 days | Follow up, or **Went cold** |
+| "Maybe later" date arrives | - | Pick up the conversation |
+
+From **No response** and **Went cold**, a contact can be moved to Not
+interested by hand, or back into the conversation if they resurface.
+
 ## Pages
 
-- **Focus** - the day's queue: overdue "maybe later" follow-ups and first
-  messages with no reply for 7 days. One contact at a time; press 1-9 to
-  pick an action, S to skip, Z to undo.
-- **Reply** - everyone waiting on a message from you: people who accepted
-  your connection (tick = second message sent, they advance) and anyone
-  flagged as awaiting a reply (tick = replied, flag clears). Each row has an
-  auto-saving draft box for half-written messages, with copy-to-clipboard.
-  The flag sets itself whenever you record that someone messaged you.
+- **Focus** - the day's queue: everything above except "they are waiting on
+  your reply", which belongs to Reply. One contact at a time; press 1-9 to
+  pick an action, S to skip, Z to undo. The move a timer suggests is
+  highlighted rather than reordered, so the number keys stay put.
+- **Reply** - everyone owed a message from you: people who wrote to you
+  (tick = messaged them back), people whose last message went unanswered
+  long enough to chase (tick = logs the next message), and conversations
+  that have gone quiet (tick = follow-up sent). Each row has an auto-saving
+  draft box for half-written messages, with copy-to-clipboard.
+- **In conversation** - everyone who replied, in four overlapping sections:
+  must respond to, awaiting response, held a meeting, sent a proposal. The
+  same person appears in every section that fits them.
+- **Connected** - the daily connection tally: one big button (or the space
+  bar) per connection, today's count against the 50-a-day goal, a bar chart
+  per date with the goal line, totals against the previous stretch, best
+  day, days at goal and the current streak. Click any bar to correct that
+  day's count.
 - **Add** - paste a LinkedIn profile URL, the name is guessed from the URL
-  slug (editable), add a website if they have one, and confirm whether the
-  first message was sent.
-- **All** - search and filter everyone, expand a row for the full history
-  and actions, import the existing board, retry failed syncs, flag someone
-  for the Reply page.
-- **Analytics** - added/messaged counts (7, 10, 30 days), connections made
-  (7, 30 days, all time), live counts per stage including "met, then went
-  cold", the all-time conversion funnel, activity over a chosen range
-  (past week, month, or custom dates) with a weekly chart, and derived
-  rates: connection rate, conversation rate, close rate, average days to
-  client.
+  slug (editable), add a website if they have one, notes if you have any,
+  and confirm whether the first message was sent.
+- **All** - search and filter everyone, click a row for the full history,
+  notes and actions, import the existing board, retry failed syncs, flag
+  someone for the Reply page, delete a contact.
+- **Analytics** - people messaged (7, 10, 30 days), connections made (7, 30
+  days, all time), live counts per stage including "met, then went cold",
+  the all-time funnel (messaged, replied, meeting, proposal, client),
+  activity over a chosen range with a weekly chart, and derived rates:
+  reply rate, meeting rate, close rate, messages needed to get a reply,
+  average days to client.
 
 A native Windows notification fires once a day when follow-ups are due.
 If the laptop was off, nothing is lost: the queue waits in the Focus tab.
@@ -88,7 +132,7 @@ reinstalling; the installer overwrites the previous version in place.
 | `src/shared/` | Data model, pipeline definitions, date and URL helpers. Used by all three processes. |
 | `src/main/` | Electron main process: JSON persistence, the Team Hub client, sync logic, reminders. |
 | `src/preload/` | The typed bridge (`window.tracker`) between renderer and main. |
-| `src/renderer/` | The React UI: Focus, Add, and All pages. |
+| `src/renderer/` | The React UI: Focus, Reply, In conversation, Connected, Add, All and Analytics pages. |
 
 Key decisions:
 
@@ -109,10 +153,22 @@ Key decisions:
   matched to stages by normalised title ("First Msg", "first msg", and
   "1st msg" all match). Renaming a column to something unrecognisable shows
   a "columns missing" warning rather than guessing.
+- **Retired columns still map.** The old per-message and connection columns
+  fold into Awaiting reply, and the meeting and proposal columns into In
+  conversation, so an existing board keeps working: cards import to the
+  right stage, and a card sitting in "Meeting held" keeps that milestone.
+  Moves go to the best-named column when a board offers several matches.
+  Adding "Awaiting reply" and "No response" columns clears the warning.
+- **One set of cadence rules.** `src/shared/cadence.ts` decides who is due
+  what; Focus, Reply and the browser preview all read it, so they cannot
+  drift apart.
 
 ## Data
 
-Contacts live in `contacts.json` under Electron's user data folder
-(`%APPDATA%/linkedin-msg-tracker`). Team Hub credentials live in `.env`,
-which is gitignored; never commit it, and rotate the key if it may have
-been exposed.
+Contacts and the connection tally live in `contacts.json` under Electron's
+user data folder (`%APPDATA%/linkedin-msg-tracker`). The file carries a
+version number and upgrades itself on load: v4 retires the per-message and
+milestone stages, turning them into the message counter and the dated
+meeting/proposal flags. Team Hub credentials live in `.env`, which is
+gitignored; never commit it, and rotate the key if it may have been
+exposed.

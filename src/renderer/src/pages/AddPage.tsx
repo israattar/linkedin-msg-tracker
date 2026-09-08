@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react';
 import type { Contact } from '../../../shared/types';
 import { formatShort, todayIso } from '../../../shared/dates';
+import { STAGES } from '../../../shared/stages';
 import {
   guessNameFromUrl,
   isLinkedinProfileUrl,
@@ -27,6 +28,7 @@ export default function AddPage({ contacts, refresh }: Props) {
   const [name, setName] = useState('');
   const [nameEdited, setNameEdited] = useState(false);
   const [website, setWebsite] = useState('');
+  const [notes, setNotes] = useState('');
   const [banner, setBanner] = useState<Banner | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,6 +53,7 @@ export default function AddPage({ contacts, refresh }: Props) {
       linkedinUrl: url.trim(),
       websiteUrl: website.trim(),
       firstMessageSent,
+      notes: notes.trim(),
     });
     setSaving(false);
 
@@ -64,7 +67,7 @@ export default function AddPage({ contacts, refresh }: Props) {
       kind: synced || !firstMessageSent ? 'success' : 'error',
       text: firstMessageSent
         ? synced
-          ? `${result.contact.name} added to First msg and synced to Team Hub.`
+          ? `${result.contact.name} added to Awaiting reply and synced to Team Hub.`
           : `${result.contact.name} saved locally, but Team Hub sync failed. Retry from the All tab.`
         : `${result.contact.name} saved as a draft. Mark the first message sent from the All tab.`,
     });
@@ -72,6 +75,7 @@ export default function AddPage({ contacts, refresh }: Props) {
     setName('');
     setNameEdited(false);
     setWebsite('');
+    setNotes('');
     await refresh();
   }
 
@@ -129,6 +133,18 @@ export default function AddPage({ contacts, refresh }: Props) {
             />
           </label>
 
+          <label className="field">
+            <span>
+              Notes <span className="hint">optional, editable any time later</span>
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Anything worth remembering about this contact..."
+              rows={3}
+            />
+          </label>
+
           <div className="add-submit">
             <button className="btn primary" disabled={!canSave} onClick={() => void save(true)}>
               First message sent
@@ -147,7 +163,11 @@ export default function AddPage({ contacts, refresh }: Props) {
             <div className="p-rows">
               <div>
                 <span>Stage</span>
-                <span>First msg</span>
+                <span>{STAGES['awaiting-reply'].label}</span>
+              </div>
+              <div>
+                <span>Messages</span>
+                <span>First message sent</span>
               </div>
               <div>
                 <span>Date</span>

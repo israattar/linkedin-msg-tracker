@@ -1,68 +1,34 @@
-// The message-back list: everyone currently waiting on a message from the
-// user. Ticking someone either advances them (Connected people get their
-// second message logged) or clears their reply flag. Each row also holds a
-// private draft box for half-written messages.
+// The message-back list: everyone currently owed a message from you, whether
+// they wrote to you, never answered your last one, or have simply gone quiet.
+// The rules live in shared/cadence so Focus and Reply always agree on who is
+// due what. Each row holds a private draft box for half-written messages.
 import { useEffect, useRef, useState } from 'react';
 import type { Contact } from '../../../shared/types';
-import { daysSince } from '../../../shared/dates';
+import { type DueItem, replyDueItems } from '../../../shared/cadence';
+import { ordinalMessage } from '../../../shared/stages';
 import { api } from '../lib/api';
 import Avatar from '../components/Avatar';
 import StageBadge from '../components/StageBadge';
 import EmptyState from '../components/EmptyState';
+import NotesBox from '../components/NotesBox';
 
 interface Props {
   contacts: Contact[];
   refresh: () => Promise<void>;
 }
 
-interface ReplyItem {
-  contact: Contact;
-  reason: string;
-  tickLabel: string;
-}
-
-// Who owes a message: Connected people (their second message is due) and
-// anyone flagged as awaiting a reply, in-conversation or otherwise.
-function buildReplyList(contacts: Contact[]): ReplyItem[] {
-  const connected: ReplyItem[] = contacts
-    .filter((c) => c.stage === 'connected')
-    .map((c) => ({
-      contact: c,
-      reason: `Accepted your connection ${describeDays(c)} - second message due`,
-      tickLabel: 'Second message sent',
-    }));
-
-  const flagged: ReplyItem[] = contacts
-    .filter((c) => c.stage !== 'connected' && c.needsReply)
-    .map((c) => ({
-      contact: c,
-      reason: 'Waiting on your reply',
-      tickLabel: 'Messaged them back',
-    }));
-
-  const oldestFirst = (a: ReplyItem, b: ReplyItem) =>
-    a.contact.updatedAt.localeCompare(b.contact.updatedAt);
-  return [...connected.sort(oldestFirst), ...flagged.sort(oldestFirst)];
-}
-
-function describeDays(contact: Contact): string {
-  const last = contact.history[contact.history.length - 1];
-  const days = last ? daysSince(last.date) : 0;
-  if (days === 0) return 'today';
-  if (days === 1) return 'yesterday';
-  return `${days} days ago`;
-}
-
 export default function ReplyPage({ contacts, refresh }: Props) {
-  const items = buildReplyList(contacts);
+  const items = replyDueItems(contacts);
   const [tickedToday, setTickedToday] = useState(0);
   const total = tickedToday + items.length;
 
-  async function tick(item: ReplyItem): Promise<void> {
+  // Ticking someone logs the message you just sent them. What that means
+  // depends on why they were here: a reply, the next chase, or a nudge.
+  async function tick(item: DueItem): Promise<void> {
     const result =
-      item.contact.stage === 'connected'
-        ? await api.applyAction(item.contact.id, 'sent-second')
-        : await api.markReplied(item.contact.id);
+      item.kind === 'respond'
+        ? await api.markReplied(item.contact.id)
+        : await api.applyAction(item.contact.id, item.suggestedActionId ?? 'sent-follow-up');
     if (result) setTickedToday((n) => n + 1);
     await refresh();
   }
@@ -87,7 +53,8 @@ export default function ReplyPage({ contacts, refresh }: Props) {
       {items.length === 0 ? (
         <div className="card" style={{ marginTop: 20 }}>
           <EmptyState title={tickedToday > 0 ? 'All messaged back, inbox zero' : 'Nobody is waiting on you'}>
-            People appear here when they accept your connection or send you a message.
+            People appear here when they message you, or when the last message you sent has gone
+            unanswered long enough to chase.
           </EmptyState>
         </div>
       ) : (
@@ -101,12 +68,19 @@ export default function ReplyPage({ contacts, refresh }: Props) {
   );
 }
 
-function ReplyRow({ item, onTick }: { item: ReplyItem; onTick: () => void }) {
+// What the tick button promises to log.
+function tickLabel(item: DueItem): string {
+  if (item.kind === 'respond') return 'Messaged them back';
+  if (item.kind === 'chase') return `${ordinalMessage(item.contact.messagesSent + 1)} message sent`;
+  return 'Follow-up sent';
+}
+
+function ReplyRow({ item, onTick }: { item: DueItem; onTick: () => void }) {
   const { contact } = item;
   const [showDraft, setShowDraft] = useState(contact.draft.length > 0);
 
   return (
-    <div className="reply-row">
+    <div className={`reply-row ${item.kind}`}>
       <div className="reply-main">
         <Avatar name={contact.name} size={38} />
         <div className="grow">
@@ -126,9 +100,10 @@ function ReplyRow({ item, onTick }: { item: ReplyItem; onTick: () => void }) {
           {contact.draft ? 'Draft saved' : 'Draft'}
         </button>
         <button className="btn small lime" onClick={onTick}>
-          {item.tickLabel}
+          {tickLabel(item)}
         </button>
       </div>
+      <NotesBox contact={contact} />
       {showDraft && <DraftBox contact={contact} />}
     </div>
   );
