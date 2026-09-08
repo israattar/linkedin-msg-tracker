@@ -107,6 +107,10 @@ export interface StorageInfo {
   kind: 'onedrive' | 'local' | 'custom';
   dir: string;
   file: string;
+  // True only when writes are genuinely reaching the cloud right now. A
+  // OneDrive folder alone does not prove this: the client can be signed out
+  // or simply not running, and the folder looks identical either way.
+  syncing: boolean;
   // Set when the app could not use the location it wanted. Shown in the UI,
   // because silently falling back to an unbacked-up folder is the one failure
   // the user would never notice on their own.

@@ -1,6 +1,6 @@
 {
   "name": "linkedin-msg-tracker",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Personal LinkedIn outreach pipeline tracker that syncs with a Team Hub sales pipeline board.",
   "main": "./out/main/index.js",
   "author": "israattar",

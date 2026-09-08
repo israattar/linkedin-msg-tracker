@@ -1825,3 +1825,13 @@ kbd {
   color: var(--muted);
   word-break: break-all;
 }
+
+/* Backup state reads as pass or fail, not as neutral information. */
+.backup-facts .v.ok {
+  color: var(--lime);
+  font-weight: 650;
+}
+.backup-facts .v.bad {
+  color: var(--pink-strong);
+  font-weight: 650;
+}

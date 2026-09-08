@@ -186,6 +186,7 @@ function createBrowserMock(): TrackerApi {
       kind: 'local' as const,
       dir: 'browser preview',
       file: 'browser preview',
+      syncing: false,
       warning: 'Browser preview: nothing here is saved anywhere.',
       snapshotCount: 0,
       lastSnapshot: null,

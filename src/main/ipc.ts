@@ -289,6 +289,7 @@ export function registerIpc(store: Store, sync: SyncService, storage: StorageLoc
       kind: storage.kind,
       dir: store.dataDir,
       file: store.dataFile,
+      syncing: storage.syncing,
       warning: storage.warning,
       snapshotCount: snapshots.count,
       lastSnapshot: snapshots.last,

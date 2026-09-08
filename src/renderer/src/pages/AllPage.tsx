@@ -391,6 +391,12 @@ function BackupPanel({
           <span className="v">{storage.file}</span>
         </div>
         <div>
+          <span className="k">Cloud backup</span>
+          <span className={`v ${storage.syncing ? 'ok' : 'bad'}`}>
+            {storage.syncing ? 'Active, syncing now' : 'Not running'}
+          </span>
+        </div>
+        <div>
           <span className="k">Daily snapshots</span>
           <span className="v">
             {storage.snapshotCount === 0
@@ -405,12 +411,19 @@ function BackupPanel({
   );
 }
 
+// Only the syncing case is allowed to use the word "backed up". A OneDrive
+// folder that nothing is watching gets described as what it is.
 function storageSummary(storage: StorageInfo): string {
-  if (storage.kind === 'onedrive') {
+  if (storage.syncing) {
     return 'Backed up to OneDrive. Every change syncs to the cloud within seconds.';
   }
-  if (storage.kind === 'custom') return 'Saving to a folder you chose.';
-  return 'Saving to this machine only.';
+  if (storage.kind === 'onedrive') {
+    return 'Saving to a OneDrive folder that is not syncing right now.';
+  }
+  if (storage.kind === 'custom') {
+    return 'Saving to a folder you chose. The app cannot tell whether anything backs it up.';
+  }
+  return 'Saving to this machine only. Nothing is backed up.';
 }
 
 // "today", "yesterday", "12 Aug 2026"
